@@ -17,3 +17,5 @@
 # note
 
 curl --user jacky:_RZekaGRgKQJSIOYi6vq0_CkJtjoCootamy81J2cDn0 --data-binary '{"jsonrpc": "1.0", "id": "curltest", "method": "getnetworkinfo", "params": []}' -H 'content-type: text/plain;' http://192.168.10.101:8332/
+
+curl --user jacky:_RZekaGRgKQJSIOYi6vq0_CkJtjoCootamy81J2cDn0 --data-binary '{"jsonrpc": "1.0", "id": "1", "method": "getblockcount", "params": []}' -H 'content-type: text/plain;' --cacert ./rpc.cert https://192.168.10.102:8337/
