@@ -34,7 +34,6 @@ fn main() {
             config.blocks_dir.clone(),
             config.daemon_rpc_addr,
             config.daemon_cert_path.clone(),
-            config.daemon_key_path.clone(),
             config.cookie_getter(),
             config.network_type,
             config.magic,

@@ -1,5 +1,5 @@
 use std::collections::{HashMap, HashSet};
-use std::convert::TryFrom;
+
 use std::fs::File;
 use std::io::{BufRead, BufReader, Lines, Read, Write};
 use std::net::{SocketAddr, TcpStream};
@@ -20,22 +20,15 @@ use bitcoin::consensus::encode::{deserialize, serialize};
 use elements::encode::{deserialize, serialize};
 
 use crate::chain::{Block, BlockHash, BlockHeader, Network, Transaction, Txid};
+use crate::errors::*;
 use crate::metrics::{HistogramOpts, HistogramVec, Metrics};
 use crate::signal::Waiter;
 use crate::util::HeaderList;
 
-use crate::errors::*;
-
 use log::{debug, info, warn};
-
-use rustls::ServerName;
-use rustls::{Certificate, ClientConfig, ClientConnection, PrivateKey, RootCertStore, StreamOwned};
-use rustls_pemfile;
-use rustls_pemfile::Item;
-
-use openssl::pkey::{PKey, Private};
-use openssl::ssl::{SslConnector, SslFiletype, SslMethod, SslStream, SslVerifyMode, SslVersion};
+use openssl::ssl::{SslConnector, SslMethod, SslStream, SslVerifyMode, SslVersion};
 use openssl::x509::X509;
+use rustls_pemfile;
 
 fn parse_hash<T>(value: &Value) -> Result<T>
 where
@@ -160,7 +153,6 @@ struct Connection {
     cookie_getter: Arc<dyn CookieGetter>,
     addr: SocketAddr,
     cert_path: Option<PathBuf>,
-    key_path: Option<PathBuf>,
     signal: Waiter,
 }
 
@@ -175,33 +167,13 @@ fn load_certs(path: &PathBuf) -> Result<Vec<X509>> {
     Ok(certs)
 }
 
-fn load_private_key(path: &PathBuf) -> Result<PKey<Private>> {
-    let keyfile = File::open(path).chain_err(|| "Failed to open private key file")?;
-    let mut reader = BufReader::new(keyfile);
-    let mut pem_data = Vec::new();
-    reader.read_to_end(&mut pem_data)?;
-
-    let pkey = PKey::private_key_from_pem(&pem_data).chain_err(|| "Failed to parse private key")?;
-
-    info!("Private key type: {:?}", pkey.id());
-    info!("Private key size: {}", pkey.bits());
-
-    Ok(pkey)
-}
-
-fn create_tls_connection(
-    addr: &SocketAddr,
-    cert_path: &PathBuf,
-    key_path: &PathBuf,
-) -> Result<SslStream<TcpStream>> {
+fn create_tls_connection(addr: &SocketAddr, cert_path: &PathBuf) -> Result<SslStream<TcpStream>> {
     let certs = load_certs(cert_path)?;
-    let key = load_private_key(key_path)?;
-
     let mut builder = SslConnector::builder(SslMethod::tls())?;
     for cert in certs {
         builder.set_certificate(&cert)?;
     }
-    builder.set_private_key(&key)?;
+    // builder.set_private_key(&key)?;
     builder.set_verify(SslVerifyMode::NONE); // 禁用证书验证
 
     // 显式设置支持的 TLS 版本
@@ -266,15 +238,14 @@ impl Connection {
     fn new(
         addr: SocketAddr,
         cert_path: Option<PathBuf>,
-        key_path: Option<PathBuf>,
         cookie_getter: Arc<dyn CookieGetter>,
         signal: Waiter,
     ) -> Result<Connection> {
         let stream: Box<dyn Write + Send + 'static>;
         let reader: Box<dyn Read + Send + 'static>;
 
-        if let (Some(cert_path), Some(key_path)) = (&cert_path, &key_path) {
-            let conn = create_tls_connection(&addr, cert_path, key_path)?;
+        if let Some(cert_path) = &cert_path {
+            let conn = create_tls_connection(&addr, cert_path)?;
             let tls_stream = TlsStream {
                 stream: Arc::new(Mutex::new(conn)),
             };
@@ -292,7 +263,6 @@ impl Connection {
             cookie_getter,
             addr,
             cert_path,
-            key_path,
             signal,
         })
     }
@@ -301,7 +271,6 @@ impl Connection {
         Connection::new(
             self.addr,
             self.cert_path.clone(),
-            self.key_path.clone(),
             self.cookie_getter.clone(),
             self.signal.clone(),
         )
@@ -424,7 +393,6 @@ impl Daemon {
         blocks_dir: PathBuf,
         daemon_rpc_addr: SocketAddr,
         daemon_cert_path: Option<PathBuf>,
-        daemon_key_path: Option<PathBuf>,
         cookie_getter: Arc<dyn CookieGetter>,
         network: Network,
         magic: Option<u32>,
@@ -439,7 +407,6 @@ impl Daemon {
             conn: Mutex::new(Connection::new(
                 daemon_rpc_addr,
                 daemon_cert_path,
-                daemon_key_path,
                 cookie_getter,
                 signal.clone(),
             )?),

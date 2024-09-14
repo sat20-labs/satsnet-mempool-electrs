@@ -417,7 +417,7 @@ source = "git+https://github.com/Blockstream/rust-electrum-client?rev=d379235299
 dependencies = [
  "bitcoin 0.27.1",
  "log",
- "rustls 0.16.0",
+ "rustls",
  "serde",
  "serde_json",
  "socks",
@@ -883,7 +883,6 @@ dependencies = [
  "prometheus",
  "rayon",
  "rocksdb",
- "rustls 0.20.9",
  "rustls-pemfile",
  "serde",
  "serde_derive",
@@ -897,7 +896,6 @@ dependencies = [
  "time 0.3.9",
  "tiny_http",
  "tokio",
- "tokio-rustls",
  "url",
  "webpki-roots 0.22.6",
 ]
@@ -1408,33 +1406,8 @@ dependencies = [
  "base64 0.10.1",
  "log",
  "ring 0.16.20",
- "sct 0.6.1",
+ "sct",
  "webpki 0.21.4",
-]
-
-[[package]]
-name = "rustls"
-version = "0.19.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "35edb675feee39aec9c99fa5ff985081995a06d594114ae14cbe797ad7b7a6d7"
-dependencies = [
- "base64 0.13.0",
- "log",
- "ring 0.16.20",
- "sct 0.6.1",
- "webpki 0.21.4",
-]
-
-[[package]]
-name = "rustls"
-version = "0.20.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b80e3dec595989ea8510028f30c408a4630db12c9cbb8de34203b89d6577e99"
-dependencies = [
- "log",
- "ring 0.16.20",
- "sct 0.7.1",
- "webpki 0.22.4",
 ]
 
 [[package]]
@@ -1466,16 +1439,6 @@ checksum = "b362b83898e0e69f38515b82ee15aa80636befe47c3b6d3d89a911e78fc228ce"
 dependencies = [
  "ring 0.16.20",
  "untrusted 0.7.1",
-]
-
-[[package]]
-name = "sct"
-version = "0.7.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "da046153aa2352493d6cb7da4b6e5c0c057d8a1d0a9aa8560baffdd945acd414"
-dependencies = [
- "ring 0.17.8",
- "untrusted 0.9.0",
 ]
 
 [[package]]
@@ -1868,17 +1831,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.26",
-]
-
-[[package]]
-name = "tokio-rustls"
-version = "0.22.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bc6844de72e57df1980054b38be3a9f4702aba4858be64dd700181a8a6d0e1b6"
-dependencies = [
- "rustls 0.19.1",
- "tokio",
- "webpki 0.21.4",
 ]
 
 [[package]]

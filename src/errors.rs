@@ -5,8 +5,6 @@ error_chain! {
 
     foreign_links {
         Io(std::io::Error);
-        Tls(rustls::Error);
-        AddrParse(std::net::AddrParseError);
         OpenSSL(openssl::error::ErrorStack);
     }
 
