@@ -3,10 +3,27 @@ error_chain! {
         Error, ErrorKind, ResultExt, Result;
     }
 
+    foreign_links {
+        Io(std::io::Error);
+        Tls(rustls::Error);
+        AddrParse(std::net::AddrParseError);
+        OpenSSL(openssl::error::ErrorStack);
+    }
+
     errors {
         Connection(msg: String) {
             description("Connection error")
             display("Connection error: {}", msg)
+        }
+
+        CertLoadingError(msg: String) {
+            description("tls Certificate loading error")
+            display("tls Certificate loading error: {}", msg)
+        }
+
+        KeyLoadingError(msg: String) {
+            description("tls Key loading error")
+            display("tls Key loading error {}", msg)
         }
 
         Interrupt(sig: i32) {

@@ -38,6 +38,8 @@ pub struct Config {
     pub daemon_dir: PathBuf,
     pub blocks_dir: PathBuf,
     pub daemon_rpc_addr: SocketAddr,
+    pub daemon_cert_path: Option<PathBuf>,
+    pub daemon_key_path: Option<PathBuf>,
     pub cookie: Option<String>,
     pub electrum_rpc_addr: SocketAddr,
     pub http_addr: SocketAddr,
@@ -159,8 +161,20 @@ impl Config {
             .arg(
                 Arg::with_name("daemon_rpc_addr")
                     .long("daemon-rpc-addr")
-                    .help("Bitcoin daemon JSONRPC 'addr:port' to connect (default: 127.0.0.1:8332 for mainnet, 127.0.0.1:18332 for testnet and 127.0.0.1:18443 for regtest)")
+                    .help("btcd daemon JSONRPC 'addr:port' to connect (default: 127.0.0.1:8332 for mainnet, 127.0.0.1:18332 for testnet and 127.0.0.1:18443 for regtest)")
                     .takes_value(true),
+            )
+            .arg(
+                Arg::with_name("daemon_cert_path")
+                    .long("daemon-cert-path")
+                    .help("Path to the btcd daemon TLS certificate")
+                    .takes_value(true)
+            )
+            .arg(
+                Arg::with_name("daemon_key_path")
+                    .long("daemon-key-path")
+                    .help("Path to the btcd daemon TLS private key")
+                    .takes_value(true)
             )
             .arg(
                 Arg::with_name("monitoring_addr")
@@ -435,6 +449,9 @@ impl Config {
                 .unwrap_or(&format!("127.0.0.1:{}", default_daemon_port)),
             "Bitcoin RPC",
         );
+        let daemon_cert_path = m.value_of("daemon_cert_path").map(PathBuf::from);
+        let daemon_key_path = m.value_of("daemon_key_path").map(PathBuf::from);
+
         let electrum_rpc_addr: SocketAddr = str_to_socketaddr(
             m.value_of("electrum_rpc_addr")
                 .unwrap_or(&format!("127.0.0.1:{}", default_electrum_port)),
@@ -512,6 +529,8 @@ impl Config {
             daemon_dir,
             blocks_dir,
             daemon_rpc_addr,
+            daemon_cert_path,
+            daemon_key_path,
             cookie,
             utxos_limit: value_t_or_exit!(m, "utxos_limit", usize),
             electrum_rpc_addr,

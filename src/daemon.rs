@@ -1,5 +1,7 @@
 use std::collections::{HashMap, HashSet};
-use std::io::{BufRead, BufReader, Lines, Write};
+use std::convert::TryFrom;
+use std::fs::File;
+use std::io::{BufRead, BufReader, Lines, Read, Write};
 use std::net::{SocketAddr, TcpStream};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -23,6 +25,17 @@ use crate::signal::Waiter;
 use crate::util::HeaderList;
 
 use crate::errors::*;
+
+use log::{debug, info, warn};
+
+use rustls::ServerName;
+use rustls::{Certificate, ClientConfig, ClientConnection, PrivateKey, RootCertStore, StreamOwned};
+use rustls_pemfile;
+use rustls_pemfile::Item;
+
+use openssl::pkey::{PKey, Private};
+use openssl::ssl::{SslConnector, SslFiletype, SslMethod, SslStream, SslVerifyMode, SslVersion};
+use openssl::x509::X509;
 
 fn parse_hash<T>(value: &Value) -> Result<T>
 where
@@ -142,11 +155,74 @@ pub trait CookieGetter: Send + Sync {
 }
 
 struct Connection {
-    tx: TcpStream,
-    rx: Lines<BufReader<TcpStream>>,
+    tx: Arc<Mutex<Box<dyn Write + Send + 'static>>>,
+    rx: Lines<BufReader<Box<dyn Read + Send + 'static>>>,
     cookie_getter: Arc<dyn CookieGetter>,
     addr: SocketAddr,
+    cert_path: Option<PathBuf>,
+    key_path: Option<PathBuf>,
     signal: Waiter,
+}
+
+fn load_certs(path: &PathBuf) -> Result<Vec<X509>> {
+    let certfile = File::open(path).chain_err(|| "Failed to open certificate file")?;
+    let mut reader = BufReader::new(certfile);
+    let certs = rustls_pemfile::certs(&mut reader)
+        .chain_err(|| "Failed to read certificates")?
+        .into_iter()
+        .map(|cert| X509::from_der(&cert).chain_err(|| "Failed to parse certificate"))
+        .collect::<Result<Vec<_>>>()?;
+    Ok(certs)
+}
+
+fn load_private_key(path: &PathBuf) -> Result<PKey<Private>> {
+    let keyfile = File::open(path).chain_err(|| "Failed to open private key file")?;
+    let mut reader = BufReader::new(keyfile);
+    let mut pem_data = Vec::new();
+    reader.read_to_end(&mut pem_data)?;
+
+    let pkey = PKey::private_key_from_pem(&pem_data).chain_err(|| "Failed to parse private key")?;
+
+    info!("Private key type: {:?}", pkey.id());
+    info!("Private key size: {}", pkey.bits());
+
+    Ok(pkey)
+}
+
+fn create_tls_connection(
+    addr: &SocketAddr,
+    cert_path: &PathBuf,
+    key_path: &PathBuf,
+) -> Result<SslStream<TcpStream>> {
+    let certs = load_certs(cert_path)?;
+    let key = load_private_key(key_path)?;
+
+    let mut builder = SslConnector::builder(SslMethod::tls())?;
+    for cert in certs {
+        builder.set_certificate(&cert)?;
+    }
+    builder.set_private_key(&key)?;
+    builder.set_verify(SslVerifyMode::NONE); // 禁用证书验证
+
+    // 显式设置支持的 TLS 版本
+    builder.set_min_proto_version(Some(SslVersion::TLS1_2))?;
+    builder.set_max_proto_version(Some(SslVersion::TLS1_3))?;
+
+    let connector = builder.build();
+
+    let stream = TcpStream::connect(addr).chain_err(|| format!("Failed to connect to {}", addr))?;
+    info!("Connected to {}", addr);
+
+    match connector.connect("localhost", stream) {
+        Ok(ssl_stream) => {
+            info!("TLS handshake successful, connected to {}", addr);
+            Ok(ssl_stream)
+        }
+        Err(e) => {
+            error!("TLS handshake failed: {}", e);
+            Err(e).chain_err(|| "Failed to create SslStream")
+        }
+    }
 }
 
 fn tcp_connect(addr: SocketAddr, signal: &Waiter) -> Result<TcpStream> {
@@ -162,28 +238,73 @@ fn tcp_connect(addr: SocketAddr, signal: &Waiter) -> Result<TcpStream> {
     }
 }
 
+#[derive(Clone)]
+struct TlsStream {
+    stream: Arc<Mutex<SslStream<TcpStream>>>,
+}
+
+impl Write for TlsStream {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        let mut stream = self.stream.lock().unwrap();
+        stream.write(buf)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        let mut stream = self.stream.lock().unwrap();
+        stream.flush()
+    }
+}
+
+impl Read for TlsStream {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        let mut stream = self.stream.lock().unwrap();
+        stream.read(buf)
+    }
+}
+
 impl Connection {
     fn new(
         addr: SocketAddr,
+        cert_path: Option<PathBuf>,
+        key_path: Option<PathBuf>,
         cookie_getter: Arc<dyn CookieGetter>,
         signal: Waiter,
     ) -> Result<Connection> {
-        let conn = tcp_connect(addr, &signal)?;
-        let reader = BufReader::new(
-            conn.try_clone()
-                .chain_err(|| format!("failed to clone {:?}", conn))?,
-        );
+        let stream: Box<dyn Write + Send + 'static>;
+        let reader: Box<dyn Read + Send + 'static>;
+
+        if let (Some(cert_path), Some(key_path)) = (&cert_path, &key_path) {
+            let conn = create_tls_connection(&addr, cert_path, key_path)?;
+            let tls_stream = TlsStream {
+                stream: Arc::new(Mutex::new(conn)),
+            };
+            stream = Box::new(tls_stream.clone());
+            reader = Box::new(tls_stream);
+        } else {
+            let conn = tcp_connect(addr, &signal)?;
+            stream = Box::new(conn.try_clone()?);
+            reader = Box::new(conn);
+        }
+
         Ok(Connection {
-            tx: conn,
-            rx: reader.lines(),
+            tx: Arc::new(Mutex::new(stream)),
+            rx: BufReader::new(reader).lines(),
             cookie_getter,
             addr,
+            cert_path,
+            key_path,
             signal,
         })
     }
 
     fn reconnect(&self) -> Result<Connection> {
-        Connection::new(self.addr, self.cookie_getter.clone(), self.signal.clone())
+        Connection::new(
+            self.addr,
+            self.cert_path.clone(),
+            self.key_path.clone(),
+            self.cookie_getter.clone(),
+            self.signal.clone(),
+        )
     }
 
     fn send(&mut self, request: &str) -> Result<()> {
@@ -194,7 +315,9 @@ impl Connection {
             request.len(),
             request,
         );
-        self.tx.write_all(msg.as_bytes()).chain_err(|| {
+
+        let mut stream = self.tx.lock().unwrap();
+        stream.write_all(msg.as_bytes()).chain_err(|| {
             ErrorKind::Connection("disconnected from daemon while sending".to_owned())
         })
     }
@@ -300,6 +423,8 @@ impl Daemon {
         daemon_dir: PathBuf,
         blocks_dir: PathBuf,
         daemon_rpc_addr: SocketAddr,
+        daemon_cert_path: Option<PathBuf>,
+        daemon_key_path: Option<PathBuf>,
         cookie_getter: Arc<dyn CookieGetter>,
         network: Network,
         magic: Option<u32>,
@@ -313,6 +438,8 @@ impl Daemon {
             magic,
             conn: Mutex::new(Connection::new(
                 daemon_rpc_addr,
+                daemon_cert_path,
+                daemon_key_path,
                 cookie_getter,
                 signal.clone(),
             )?),
