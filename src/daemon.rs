@@ -106,7 +106,6 @@ pub struct BlockchainInfo {
     pub blocks: u32,
     pub headers: u32,
     pub bestblockhash: String,
-    pub pruned: bool,
     pub verificationprogress: f32,
     pub initialblockdownload: Option<bool>,
 }
@@ -119,7 +118,6 @@ pub struct MempoolInfo {
 #[derive(Serialize, Deserialize, Debug)]
 struct NetworkInfo {
     version: u64,
-    subversion: String,
     relayfee: f64, // in BTC/kB
 }
 
@@ -421,19 +419,16 @@ impl Daemon {
                 &["method", "dir"],
             ),
         };
-        let network_info = daemon.getnetworkinfo()?;
-        info!("{:?}", network_info);
-        if network_info.version < 16_00_00 {
+        let info = daemon.getinfo()?;
+        info!("{:?}", info);
+
+        if info.version < 7_0_00 {
             bail!(
-                "{} is not supported - please use bitcoind 0.16+",
-                network_info.subversion,
+                "{} is not supported - please use satsnet? /btcd ?+",
+                info.version,
             )
         }
-        let blockchain_info = daemon.getblockchaininfo()?;
-        info!("{:?}", blockchain_info);
-        if blockchain_info.pruned {
-            bail!("pruned node is not supported (use '-prune=0' bitcoind flag)".to_owned())
-        }
+
         loop {
             let info = daemon.getblockchaininfo()?;
             let mempool = daemon.getmempoolinfo()?;
@@ -564,7 +559,7 @@ impl Daemon {
         loop {
             match self.handle_request_batch(method, params_list, failure_threshold) {
                 Err(Error(ErrorKind::Connection(msg), _)) => {
-                    warn!("reconnecting to bitcoind: {}", msg);
+                    warn!("reconnecting to satsnet/btcd: {}", msg);
                     self.signal.wait(Duration::from_secs(3), false)?;
                     let mut conn = self.conn.lock().unwrap();
                     *conn = conn.reconnect()?;
@@ -597,9 +592,9 @@ impl Daemon {
         from_value(info).chain_err(|| "invalid mempool info")
     }
 
-    fn getnetworkinfo(&self) -> Result<NetworkInfo> {
-        let info: Value = self.request("getnetworkinfo", json!([]))?;
-        from_value(info).chain_err(|| "invalid network info")
+    fn getinfo(&self) -> Result<NetworkInfo> {
+        let info: Value = self.request("getinfo", json!([]))?;
+        from_value(info).chain_err(|| "invalid info")
     }
 
     pub fn getbestblockhash(&self) -> Result<BlockHash> {
@@ -810,7 +805,7 @@ impl Daemon {
     }
 
     pub fn get_relayfee(&self) -> Result<f64> {
-        let relayfee = self.getnetworkinfo()?.relayfee;
+        let relayfee = self.getinfo()?.relayfee;
 
         // from BTC/kB to sat/b
         Ok(relayfee * 100_000f64)
