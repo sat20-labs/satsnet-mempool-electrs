@@ -13,7 +13,7 @@ need info: relayfee,version
 2 pass
 bitcoind: getrawtransaction
 
-3
+3 pass
 bitcoind: getblockchaininfo
 btcd: getchaintips? getblockcount? getinfo? getmininginfo? getcurrentnet?
 
@@ -35,12 +35,12 @@ bitcoind: getrawmempool
 9 pass
 bitcoind: sendrawtransaction
 
-10
+10 pass
 bitcoind: testmempoolaccept
 
-11
+11 pass
 bitcoind: estimatesmartfee
-btcd: wallet rpc 
+btcd: estimatefee   estimatesmartfee 
 
 12 pass
 bitcoind: getblockhash
