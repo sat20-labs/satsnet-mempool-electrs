@@ -67,6 +67,7 @@ electrum-client = { version = "0.8", optional = true }
 openssl = "0.10"
 rustls-pemfile = "1.0"
 webpki-roots = "0.22"
+reqwest = { version = "0.11", features = ["default-tls", "blocking"] }
 
 [dev-dependencies]
 tempfile = "3.0"

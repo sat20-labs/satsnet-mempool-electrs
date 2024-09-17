@@ -112,7 +112,7 @@ pub struct BlockchainInfo {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct MempoolInfo {
-    pub loaded: bool,
+    pub size: u32,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -439,7 +439,7 @@ impl Daemon {
                 !info.initialblockdownload.unwrap_or(false)
             };
 
-            if mempool.loaded && ibd_done && info.blocks == info.headers {
+            if mempool.size > 0 && ibd_done && info.blocks == info.headers {
                 break;
             }
 
@@ -448,7 +448,7 @@ impl Daemon {
                 info.blocks,
                 info.headers,
                 info.verificationprogress * 100.0,
-                mempool.loaded
+                mempool.size
             );
             signal.wait(Duration::from_secs(5), false)?;
         }
@@ -713,33 +713,27 @@ impl Daemon {
     // Get estimated feerates for the provided confirmation targets using a batch RPC request
     // Missing estimates are logged but do not cause a failure, whatever is available is returned
     #[allow(clippy::float_cmp)]
-    pub fn estimatesmartfee_batch(&self, conf_targets: &[u16]) -> Result<HashMap<u16, f64>> {
+    pub fn estimatefee_batch(&self, conf_targets: &[u16]) -> Result<HashMap<u16, f64>> {
         let params_list: Vec<Value> = conf_targets.iter().map(|t| json!([t])).collect();
 
         Ok(self
-            .requests("estimatesmartfee", &params_list)?
+            .requests("estimatefee", &params_list)?
             .iter()
             .zip(conf_targets)
             .filter_map(|(reply, target)| {
-                if !reply["errors"].is_null() {
-                    warn!(
-                        "failed estimating fee for target {}: {:?}",
-                        target, reply["errors"]
-                    );
-                    return None;
+                match reply.as_f64() {
+                    Some(feerate) if feerate != -1.0 => {
+                        // from BTC/kB to sat/b
+                        Some((*target, feerate * 100_000f64))
+                    }
+                    _ => {
+                        warn!(
+                            "invalid estimatefee response or not enough data for target {}",
+                            target
+                        );
+                        None
+                    }
                 }
-
-                let feerate = reply["feerate"]
-                    .as_f64()
-                    .unwrap_or_else(|| panic!("invalid estimatesmartfee response: {:?}", reply));
-
-                if feerate == -1f64 {
-                    warn!("not enough data to estimate fee for target {}", target);
-                    return None;
-                }
-
-                // from BTC/kB to sat/b
-                Some((*target, feerate * 100_000f64))
             })
             .collect())
     }
