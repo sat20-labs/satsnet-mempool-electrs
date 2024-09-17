@@ -1013,7 +1013,7 @@ impl ChainQuery {
             // TODO fetch transaction as binary from REST API instead of as hex
             let txhex = self
                 .daemon
-                .gettransaction_raw(txid, blockhash, false)
+                .gettransaction_raw(txid, blockhash, 0)
                 .ok()?;
             Some(hex::decode(txhex.as_str().unwrap()).unwrap())
         } else {

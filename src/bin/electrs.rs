@@ -47,7 +47,7 @@ fn run_server(config: Arc<Config>) -> Result<()> {
     let daemon = Arc::new(Daemon::new(
         config.daemon_dir.clone(),
         config.blocks_dir.clone(),
-        config.daemon_rpc_addr,
+        format!("https://{}", config.daemon_rpc_host),
         config.daemon_cert_path.clone(),
         config.cookie_getter(),
         config.network_type,

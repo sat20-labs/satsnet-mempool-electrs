@@ -1,8 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
-use std::fs::File;
-use std::io::{BufRead, BufReader, Lines, Read, Write};
-use std::net::{SocketAddr, TcpStream};
+use std::fs;
+use std::io::Read;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -26,9 +25,10 @@ use crate::signal::Waiter;
 use crate::util::HeaderList;
 
 use log::{debug, info, warn};
-use openssl::ssl::{SslConnector, SslMethod, SslStream, SslVerifyMode, SslVersion};
 use openssl::x509::X509;
-use rustls_pemfile;
+
+use reqwest::blocking::{Client, Response};
+use reqwest::header::AUTHORIZATION;
 
 fn parse_hash<T>(value: &Value) -> Result<T>
 where
@@ -106,8 +106,6 @@ pub struct BlockchainInfo {
     pub blocks: u32,
     pub headers: u32,
     pub bestblockhash: String,
-    pub verificationprogress: f32,
-    pub initialblockdownload: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -146,120 +144,43 @@ pub trait CookieGetter: Send + Sync {
 }
 
 struct Connection {
-    tx: Arc<Mutex<Box<dyn Write + Send + 'static>>>,
-    rx: Lines<BufReader<Box<dyn Read + Send + 'static>>>,
+    client: Client,
     cookie_getter: Arc<dyn CookieGetter>,
-    addr: SocketAddr,
+    url: String,
     cert_path: Option<PathBuf>,
     signal: Waiter,
 }
 
-fn load_certs(path: &PathBuf) -> Result<Vec<X509>> {
-    let certfile = File::open(path).chain_err(|| "Failed to open certificate file")?;
-    let mut reader = BufReader::new(certfile);
-    let certs = rustls_pemfile::certs(&mut reader)
-        .chain_err(|| "Failed to read certificates")?
-        .into_iter()
-        .map(|cert| X509::from_der(&cert).chain_err(|| "Failed to parse certificate"))
-        .collect::<Result<Vec<_>>>()?;
-    Ok(certs)
-}
+fn validate_cert_path(cert_path: &PathBuf) -> Result<()> {
+    let mut file = fs::File::open(cert_path).chain_err(|| "Failed to open cert file")?;
+    let mut buffer = Vec::new();
+    file.read_to_end(&mut buffer)
+        .chain_err(|| "Failed to read cert file")?;
+    X509::from_pem(&buffer).chain_err(|| "Invalid certificate")?;
 
-fn create_tls_connection(addr: &SocketAddr, cert_path: &PathBuf) -> Result<SslStream<TcpStream>> {
-    let certs = load_certs(cert_path)?;
-    let mut builder = SslConnector::builder(SslMethod::tls())?;
-    for cert in certs {
-        builder.set_certificate(&cert)?;
-    }
-    // builder.set_private_key(&key)?;
-    builder.set_verify(SslVerifyMode::NONE); // 禁用证书验证
-
-    // 显式设置支持的 TLS 版本
-    builder.set_min_proto_version(Some(SslVersion::TLS1_2))?;
-    builder.set_max_proto_version(Some(SslVersion::TLS1_3))?;
-
-    let connector = builder.build();
-
-    let stream = TcpStream::connect(addr).chain_err(|| format!("Failed to connect to {}", addr))?;
-    info!("Connected to {}", addr);
-
-    match connector.connect("localhost", stream) {
-        Ok(ssl_stream) => {
-            info!("TLS handshake successful, connected to {}", addr);
-            Ok(ssl_stream)
-        }
-        Err(e) => {
-            error!("TLS handshake failed: {}", e);
-            Err(e).chain_err(|| "Failed to create SslStream")
-        }
-    }
-}
-
-fn tcp_connect(addr: SocketAddr, signal: &Waiter) -> Result<TcpStream> {
-    loop {
-        match TcpStream::connect(addr) {
-            Ok(conn) => return Ok(conn),
-            Err(err) => {
-                warn!("failed to connect daemon at {}: {}", addr, err);
-                signal.wait(Duration::from_secs(3), false)?;
-                continue;
-            }
-        }
-    }
-}
-
-#[derive(Clone)]
-struct TlsStream {
-    stream: Arc<Mutex<SslStream<TcpStream>>>,
-}
-
-impl Write for TlsStream {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        let mut stream = self.stream.lock().unwrap();
-        stream.write(buf)
-    }
-
-    fn flush(&mut self) -> std::io::Result<()> {
-        let mut stream = self.stream.lock().unwrap();
-        stream.flush()
-    }
-}
-
-impl Read for TlsStream {
-    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        let mut stream = self.stream.lock().unwrap();
-        stream.read(buf)
-    }
+    Ok(())
 }
 
 impl Connection {
     fn new(
-        addr: SocketAddr,
+        url: String,
         cert_path: Option<PathBuf>,
         cookie_getter: Arc<dyn CookieGetter>,
         signal: Waiter,
     ) -> Result<Connection> {
-        let stream: Box<dyn Write + Send + 'static>;
-        let reader: Box<dyn Read + Send + 'static>;
-
-        if let Some(cert_path) = &cert_path {
-            let conn = create_tls_connection(&addr, cert_path)?;
-            let tls_stream = TlsStream {
-                stream: Arc::new(Mutex::new(conn)),
-            };
-            stream = Box::new(tls_stream.clone());
-            reader = Box::new(tls_stream);
-        } else {
-            let conn = tcp_connect(addr, &signal)?;
-            stream = Box::new(conn.try_clone()?);
-            reader = Box::new(conn);
+        if let Some(ref path) = cert_path {
+            validate_cert_path(path)?;
         }
 
+        let client = Client::builder()
+            .danger_accept_invalid_certs(cert_path.is_some())
+            .build()
+            .chain_err(|| "Failed to build client")?;
+
         Ok(Connection {
-            tx: Arc::new(Mutex::new(stream)),
-            rx: BufReader::new(reader).lines(),
+            client,
             cookie_getter,
-            addr,
+            url,
             cert_path,
             signal,
         })
@@ -267,88 +188,43 @@ impl Connection {
 
     fn reconnect(&self) -> Result<Connection> {
         Connection::new(
-            self.addr,
+            self.url.clone(),
             self.cert_path.clone(),
             self.cookie_getter.clone(),
             self.signal.clone(),
         )
     }
 
-    fn send(&mut self, request: &str) -> Result<()> {
-        let cookie = &self.cookie_getter.get()?;
-        let msg = format!(
-            "POST / HTTP/1.1\nAuthorization: Basic {}\nContent-Length: {}\n\n{}",
-            base64::encode(cookie),
-            request.len(),
-            request,
-        );
+    fn send(&self, request: &str) -> Result<Response> {
+        let cookie = self.cookie_getter.get()?;
+        let url = &self.url;
 
-        let mut stream = self.tx.lock().unwrap();
-        stream.write_all(msg.as_bytes()).chain_err(|| {
-            ErrorKind::Connection("disconnected from daemon while sending".to_owned())
-        })
+        let body = request.to_string();
+        println!("send body: {}", body);
+        let response = self
+            .client
+            .post(url)
+            .header(AUTHORIZATION, format!("Basic {}", base64::encode(cookie)))
+            .header(reqwest::header::CONTENT_TYPE, "application/json")
+            .body(request.to_string())
+            .send()
+            .chain_err(|| "Failed to send request")?;
+
+        Ok(response)
     }
 
-    fn recv(&mut self) -> Result<String> {
-        // TODO: use proper HTTP parser.
-        let mut in_header = true;
-        let mut contents: Option<String> = None;
-        let iter = self.rx.by_ref();
-        let status = iter
-            .next()
-            .chain_err(|| {
-                ErrorKind::Connection("disconnected from daemon while receiving".to_owned())
-            })?
-            .chain_err(|| ErrorKind::Connection("failed to read status".to_owned()))?;
-        let mut headers = HashMap::new();
-        for line in iter {
-            let line = line.chain_err(|| ErrorKind::Connection("failed to read".to_owned()))?;
-            if line.is_empty() {
-                in_header = false; // next line should contain the actual response.
-            } else if in_header {
-                let parts: Vec<&str> = line.splitn(2, ": ").collect();
-                if parts.len() == 2 {
-                    headers.insert(parts[0].to_owned(), parts[1].to_owned());
-                } else {
-                    warn!("invalid header: {:?}", line);
-                }
-            } else {
-                contents = Some(line);
-                break;
-            }
-        }
+    fn recv(response: Response) -> Result<String> {
+        let status = response.status();
+        let contents = response
+            .text()
+            .chain_err(|| "Failed to read response text")?;
 
-        let contents =
-            contents.chain_err(|| ErrorKind::Connection("no reply from daemon".to_owned()))?;
-        let contents_length: &str = headers
-            .get("Content-Length")
-            .chain_err(|| format!("Content-Length is missing: {:?}", headers))?;
-        let contents_length: usize = contents_length
-            .parse()
-            .chain_err(|| format!("invalid Content-Length: {:?}", contents_length))?;
-
-        let expected_length = contents_length - 1; // trailing EOL is skipped
-        if expected_length != contents.len() {
-            bail!(ErrorKind::Connection(format!(
-                "expected {} bytes, got {}",
-                expected_length,
-                contents.len()
-            )));
-        }
-
-        Ok(if status == "HTTP/1.1 200 OK" {
-            contents
-        } else if status == "HTTP/1.1 500 Internal Server Error" {
-            warn!("HTTP status: {}", status);
-            contents // the contents should have a JSONRPC error field
+        println!("recv contents: {}", contents);
+        if status.is_success() {
+            Ok(contents)
         } else {
-            bail!(
-                "request failed {:?}: {:?} = {:?}",
-                status,
-                headers,
-                contents
-            );
-        })
+            bail!("HTTP error: {}, Response: {}", status, contents);
+        }
     }
 }
 
@@ -389,7 +265,7 @@ impl Daemon {
     pub fn new(
         daemon_dir: PathBuf,
         blocks_dir: PathBuf,
-        daemon_rpc_addr: SocketAddr,
+        daemon_rpc_url: String,
         daemon_cert_path: Option<PathBuf>,
         cookie_getter: Arc<dyn CookieGetter>,
         network: Network,
@@ -403,7 +279,7 @@ impl Daemon {
             network,
             magic,
             conn: Mutex::new(Connection::new(
-                daemon_rpc_addr,
+                daemon_rpc_url.clone(),
                 daemon_cert_path,
                 cookie_getter,
                 signal.clone(),
@@ -436,18 +312,24 @@ impl Daemon {
             let ibd_done = if network.is_regtest() {
                 info.blocks == info.headers
             } else {
-                !info.initialblockdownload.unwrap_or(false)
+                // !info.initialblockdownload.unwrap_or(false)
+                true
             };
 
-            if mempool.size > 0 && ibd_done && info.blocks == info.headers {
+            if ibd_done && info.blocks == info.headers {
                 break;
             }
 
+            // if mempool.size > 0 && ibd_done && info.blocks == info.headers {
+            //     break;
+            // }
+
             warn!(
-                "waiting for bitcoind sync and mempool load to finish: {}/{} blocks, verification progress: {:.3}%, mempool loaded: {}",
+                "waiting for btcd sync and mempool load to finish: {}/{} blocks, verification progress: {:.3}%, mempool loaded: {}",
                 info.blocks,
                 info.headers,
-                info.verificationprogress * 100.0,
+                100.0,
+                // info.verificationprogress * 100.0,
                 mempool.size
             );
             signal.wait(Duration::from_secs(5), false)?;
@@ -485,19 +367,19 @@ impl Daemon {
     }
 
     fn call_jsonrpc(&self, method: &str, request: &Value) -> Result<Value> {
-        let mut conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().unwrap();
         let timer = self.latency.with_label_values(&[method]).start_timer();
         let request = request.to_string();
-        conn.send(&request)?;
+        let response = conn.send(&request)?;
         self.size
             .with_label_values(&[method, "send"])
             .observe(request.len() as f64);
-        let response = conn.recv()?;
-        let result: Value = from_str(&response).chain_err(|| "invalid JSON")?;
+        let response_text = Connection::recv(response)?;
+        let result: Value = from_str(&response_text).chain_err(|| "invalid JSON")?;
         timer.observe_duration();
         self.size
             .with_label_values(&[method, "recv"])
-            .observe(response.len() as f64);
+            .observe(response_text.len() as f64);
         Ok(result)
     }
 
@@ -510,7 +392,7 @@ impl Daemon {
         let id = self.message_id.next();
         let chunks = params_list
             .iter()
-            .map(|params| json!({"method": method, "params": params, "id": id}))
+            .map(|params| json!({"jsonrpc":"1.0", "method": method, "params": params, "id": id}))
             .chunks(50_000); // Max Amount of batched requests
         let mut results = vec![];
         let total_requests = params_list.len();
@@ -580,7 +462,7 @@ impl Daemon {
         self.retry_request_batch(method, params_list, 0.0)
     }
 
-    // bitcoind JSONRPC API:
+    // btcd JSONRPC API:
 
     pub fn getblockchaininfo(&self) -> Result<BlockchainInfo> {
         let info: Value = self.request("getblockchaininfo", json!([]))?;
@@ -624,7 +506,7 @@ impl Daemon {
 
     pub fn getblock(&self, blockhash: &BlockHash) -> Result<Block> {
         let block = block_from_value(
-            self.request("getblock", json!([blockhash.to_hex(), /*verbose=*/ false]))?,
+            self.request("getblock", json!([blockhash.to_hex(), /*verbose=*/ 0]))?,
         )?;
         assert_eq!(block.block_hash(), *blockhash);
         Ok(block)
@@ -637,7 +519,7 @@ impl Daemon {
     pub fn getblocks(&self, blockhashes: &[BlockHash]) -> Result<Vec<Block>> {
         let params_list: Vec<Value> = blockhashes
             .iter()
-            .map(|hash| json!([hash.to_hex(), /*verbose=*/ false]))
+            .map(|hash| json!([hash.to_hex(), /*verbose=*/ 0]))
             .collect();
         let values = self.requests("getblock", &params_list)?;
         let mut blocks = vec![];
@@ -665,7 +547,7 @@ impl Daemon {
         &self,
         txid: &Txid,
         blockhash: &BlockHash,
-        verbose: bool,
+        verbose: u32,
     ) -> Result<Value> {
         self.request(
             "getrawtransaction",
@@ -676,7 +558,7 @@ impl Daemon {
     pub fn getmempooltx(&self, txhash: &Txid) -> Result<Transaction> {
         let value = self.request(
             "getrawtransaction",
-            json!([txhash.to_hex(), /*verbose=*/ false]),
+            json!([txhash.to_hex(), /*verbose=*/ 0]),
         )?;
         tx_from_value(value)
     }
