@@ -1,0 +1,160 @@
+{
+    // 使用 IntelliSense 了解相关属性。 
+    // 悬停以查看现有属性的描述。
+    // 欲了解更多信息，请访问: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'electrs'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=mempool-electrs"
+                ],
+                "filter": {
+                    "name": "electrs",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'electrs-btcd'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=electrs",
+                    "--package=mempool-electrs"
+                ],
+                "filter": {
+                    "name": "electrs",
+                    "kind": "bin"
+                }
+            },
+            "args": [
+                "-vvvv",
+                "--cookie",
+                "jacky:_RZekaGRgKQJSIOYi6vq0_CkJtjoCootamy81J2cDn0",
+                "--db-dir",
+                "./data",
+                "--daemon-rpc-host",
+                "192.168.10.188:8337",
+                "--network",
+                "mainnet",
+                "--daemon-cert-path",
+                "./rpc.cert",
+                "--address-search",
+                "--index-unspendables",
+                "--cors",
+                "*",
+                "--http-addr",
+                "0.0.0.0:3000",
+                "--jsonrpc-import"
+            ],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "RUST_BACKTRACE": "1"
+            }
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'electrs'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=electrs",
+                    "--package=mempool-electrs"
+                ],
+                "filter": {
+                    "name": "electrs",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'popular-scripts'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=popular-scripts",
+                    "--package=mempool-electrs"
+                ],
+                "filter": {
+                    "name": "popular-scripts",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'popular-scripts'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=popular-scripts",
+                    "--package=mempool-electrs"
+                ],
+                "filter": {
+                    "name": "popular-scripts",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'tx-fingerprint-stats'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=tx-fingerprint-stats",
+                    "--package=mempool-electrs"
+                ],
+                "filter": {
+                    "name": "tx-fingerprint-stats",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'tx-fingerprint-stats'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=tx-fingerprint-stats",
+                    "--package=mempool-electrs"
+                ],
+                "filter": {
+                    "name": "tx-fingerprint-stats",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}

@@ -4,5 +4,5 @@ target
 *.sublime*
 *~
 *.pyc
-.vscode
+# .vscode
 data
