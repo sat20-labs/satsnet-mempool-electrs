@@ -200,7 +200,7 @@ impl Connection {
         let url = &self.url;
 
         let body = request.to_string();
-        println!("send body: {}", body);
+        // println!("send body: {}", body);
         let response = self
             .client
             .post(url)
@@ -219,7 +219,7 @@ impl Connection {
             .text()
             .chain_err(|| "Failed to read response text")?;
 
-        println!("recv contents: {}", contents);
+        // println!("recv contents: {}", contents);
         if status.is_success() {
             Ok(contents)
         } else {
