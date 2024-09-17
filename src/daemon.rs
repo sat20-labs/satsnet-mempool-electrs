@@ -199,7 +199,7 @@ impl Connection {
         let cookie = self.cookie_getter.get()?;
         let url = &self.url;
 
-        let body = request.to_string();
+        // let body = request.to_string();
         // println!("send body: {}", body);
         let response = self
             .client
