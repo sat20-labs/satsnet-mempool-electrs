@@ -18,7 +18,7 @@ use crate::util::{spawn_thread, HeaderEntry, SyncChannel};
 
 #[derive(Clone, Copy, Debug)]
 pub enum FetchFrom {
-    Bitcoind,
+    Btcd,
     BlkFiles,
 }
 
@@ -28,7 +28,7 @@ pub fn start_fetcher(
     new_headers: Vec<HeaderEntry>,
 ) -> Result<Fetcher<Vec<BlockEntry>>> {
     let fetcher = match from {
-        FetchFrom::Bitcoind => btcd_fetcher,
+        FetchFrom::Btcd => btcd_fetcher,
         FetchFrom::BlkFiles => blkfiles_fetcher,
     };
     fetcher(daemon, new_headers)

@@ -305,7 +305,7 @@ impl Indexer {
         assert_eq!(tip, *headers.tip());
 
         if let FetchFrom::BlkFiles = self.from {
-            self.from = FetchFrom::Bitcoind;
+            self.from = FetchFrom::Btcd;
         }
 
         self.tip_metric.set(headers.len() as i64 - 1);
@@ -1011,10 +1011,7 @@ impl ChainQuery {
                 blockhash.map_or_else(|| self.tx_confirming_block(txid).map(|b| b.hash), |_| None);
             let blockhash = blockhash.or(queried_blockhash.as_ref())?;
             // TODO fetch transaction as binary from REST API instead of as hex
-            let txhex = self
-                .daemon
-                .gettransaction_raw(txid, blockhash, 0)
-                .ok()?;
+            let txhex = self.daemon.gettransaction_raw(txid, blockhash, 0).ok()?;
             Some(hex::decode(txhex.as_str().unwrap()).unwrap())
         } else {
             self.store.txstore_db.get(&TxRow::key(&txid[..]))
