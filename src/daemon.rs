@@ -532,7 +532,7 @@ impl Daemon {
     pub fn gettransactions(&self, txhashes: &[&Txid]) -> Result<Vec<Transaction>> {
         let params_list: Vec<Value> = txhashes
             .iter()
-            .map(|txhash| json!([txhash.to_hex(), /*verbose=*/ false]))
+            .map(|txhash| json!([txhash.to_hex(), /*verbose=*/ 0]))
             .collect();
         let values = self.retry_request_batch("getrawtransaction", &params_list, 0.25)?;
         let mut txs = vec![];
