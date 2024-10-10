@@ -15,7 +15,7 @@ pub trait ScriptToAsm: std::fmt::Debug {
         asm[7..asm.len() - 1].to_string()
     }
 }
-impl ScriptToAsm for bitcoin::Script {}
+impl ScriptToAsm for satsnet::Script {}
 #[cfg(feature = "liquid")]
 impl ScriptToAsm for elements::Script {}
 
@@ -23,9 +23,9 @@ pub trait ScriptToAddr {
     fn to_address_str(&self, network: Network) -> Option<String>;
 }
 #[cfg(not(feature = "liquid"))]
-impl ScriptToAddr for bitcoin::Script {
+impl ScriptToAddr for satsnet::Script {
     fn to_address_str(&self, network: Network) -> Option<String> {
-        bitcoin::Address::from_script(self, network.into()).map(|s| s.to_string())
+        satsnet::Address::from_script(self, network.into()).map(|s| s.to_string())
     }
 }
 #[cfg(feature = "liquid")]

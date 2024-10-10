@@ -1,10 +1,10 @@
 use bounded_vec_deque::BoundedVecDeque;
 use itertools::Itertools;
 
-#[cfg(not(feature = "liquid"))]
-use bitcoin::consensus::encode::serialize;
 #[cfg(feature = "liquid")]
 use elements::{encode::serialize, AssetId};
+#[cfg(not(feature = "liquid"))]
+use satsnet::consensus::encode::serialize;
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::iter::FromIterator;

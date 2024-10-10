@@ -6,3 +6,4 @@ target
 *.pyc
 # .vscode
 data
+data-satsnet

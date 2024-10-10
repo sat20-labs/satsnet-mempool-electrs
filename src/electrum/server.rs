@@ -13,16 +13,16 @@ use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread;
 
-use bitcoin::hashes::sha256d::Hash as Sha256dHash;
 use error_chain::ChainedError;
 use hex;
+use satsnet::hashes::sha256d::Hash as Sha256dHash;
 use serde_json::{from_str, Value};
 use sha2::{Digest, Sha256};
 
-#[cfg(not(feature = "liquid"))]
-use bitcoin::consensus::encode::serialize;
 #[cfg(feature = "liquid")]
 use elements::encode::serialize;
+#[cfg(not(feature = "liquid"))]
+use satsnet::consensus::encode::serialize;
 
 use crate::chain::Txid;
 use crate::config::{Config, VERSION_STRING};
@@ -791,7 +791,6 @@ impl RPC {
         // Discovery is enabled when electrum-public-hosts is set
         #[cfg(feature = "electrum-discovery")]
         let discovery = config.electrum_public_hosts.clone().map(|hosts| {
-            use crate::chain::genesis_hash;
             let features = ServerFeatures {
                 hosts,
                 server_version: VERSION_STRING.clone(),

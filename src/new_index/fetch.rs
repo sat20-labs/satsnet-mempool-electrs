@@ -1,9 +1,9 @@
 use rayon::prelude::*;
 
-#[cfg(not(feature = "liquid"))]
-use bitcoin::consensus::encode::{deserialize, Decodable};
 #[cfg(feature = "liquid")]
 use elements::encode::{deserialize, Decodable};
+#[cfg(not(feature = "liquid"))]
+use satsnet::consensus::encode::{deserialize, Decodable};
 
 use std::collections::HashMap;
 use std::fs;
@@ -78,6 +78,9 @@ fn btcd_fetcher(
         spawn_thread("btcd_fetcher", move || {
             for entries in new_headers.chunks(100) {
                 let blockhashes: Vec<BlockHash> = entries.iter().map(|e| *e.hash()).collect();
+                // let test1: std::result::Result<Vec<Block>, Error> = daemon.getblocks(&blockhashes);
+                // println!("{:?}", test1);
+                // trace!("[count] | {test1}");
                 let blocks = daemon
                     .getblocks(&blockhashes)
                     .expect("failed to get blocks from btcd");

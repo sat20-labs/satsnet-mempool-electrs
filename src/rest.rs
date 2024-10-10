@@ -10,15 +10,15 @@ use crate::util::{
 };
 
 #[cfg(not(feature = "liquid"))]
-use {bitcoin::consensus::encode, std::str::FromStr};
+use {satsnet::consensus::encode, std::str::FromStr};
 
-use bitcoin::blockdata::opcodes;
-use bitcoin::hashes::hex::{FromHex, ToHex};
-use bitcoin::hashes::Error as HashError;
 use hex::{self, FromHexError};
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{Body, Method, Response, Server, StatusCode};
 use prometheus::{HistogramOpts, HistogramVec};
+use satsnet::blockdata::opcodes;
+use satsnet::hashes::hex::{FromHex, ToHex};
+use satsnet::hashes::Error as HashError;
 use tokio::sync::oneshot;
 
 use hyperlocal::UnixServerExt;
@@ -124,7 +124,7 @@ impl BlockValue {
 ///
 /// https://github.com/bitcoin/bitcoin/blob/v25.0/src/rpc/blockchain.cpp#L75-L97
 #[cfg_attr(feature = "liquid", allow(dead_code))]
-fn difficulty_new(bh: &bitcoin::BlockHeader) -> f64 {
+fn difficulty_new(bh: &satsnet::BlockHeader) -> f64 {
     let mut n_shift = bh.bits >> 24 & 0xff;
     let mut d_diff = (0x0000ffff as f64) / ((bh.bits & 0x00ffffff) as f64);
 
@@ -1736,14 +1736,14 @@ impl From<FromHexError> for HttpError {
         HttpError::from("Invalid hex string".to_string())
     }
 }
-impl From<bitcoin::hashes::hex::Error> for HttpError {
-    fn from(_e: bitcoin::hashes::hex::Error) -> Self {
+impl From<satsnet::hashes::hex::Error> for HttpError {
+    fn from(_e: satsnet::hashes::hex::Error) -> Self {
         //HttpError::from(e.description().to_string())
         HttpError::from("Invalid hex string".to_string())
     }
 }
-impl From<bitcoin::util::address::Error> for HttpError {
-    fn from(_e: bitcoin::util::address::Error) -> Self {
+impl From<satsnet::util::address::Error> for HttpError {
+    fn from(_e: satsnet::util::address::Error) -> Self {
         //HttpError::from(e.description().to_string())
         HttpError::from("Invalid Bitcoin address".to_string())
     }
@@ -1950,7 +1950,7 @@ mod tests {
             ),
         ];
 
-        let to_bh = |b| bitcoin::BlockHeader {
+        let to_bh = |b| satsnet::BlockHeader {
             version: 1,
             prev_blockhash: "0000000000000000000000000000000000000000000000000000000000000000"
                 .parse()

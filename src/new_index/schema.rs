@@ -1,18 +1,18 @@
-use bitcoin::hashes::sha256d::Hash as Sha256dHash;
-#[cfg(not(feature = "liquid"))]
-use bitcoin::util::merkleblock::MerkleBlock;
-use bitcoin::VarInt;
 use itertools::Itertools;
 use rayon::prelude::*;
+use satsnet::hashes::sha256d::Hash as Sha256dHash;
+#[cfg(not(feature = "liquid"))]
+use satsnet::util::merkleblock::MerkleBlock;
+use satsnet::VarInt;
 use sha2::{Digest, Sha256};
 
-#[cfg(not(feature = "liquid"))]
-use bitcoin::consensus::encode::{deserialize, serialize};
 #[cfg(feature = "liquid")]
 use elements::{
     encode::{deserialize, serialize},
     AssetId,
 };
+#[cfg(not(feature = "liquid"))]
+use satsnet::consensus::encode::{deserialize, serialize};
 
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::convert::TryInto;
@@ -269,8 +269,13 @@ impl Indexer {
     pub fn update(&mut self, daemon: &Daemon) -> Result<BlockHash> {
         let daemon = daemon.reconnect()?;
         let tip = daemon.getbestblockhash()?;
-        let new_headers = self.get_new_headers(&daemon, &tip)?;
+        // let new_headers = self.get_new_headers(&daemon, &tip)?;
 
+        let new_headers: Vec<HeaderEntry> = self
+            .get_new_headers(&daemon, &tip)?
+            .into_iter()
+            .filter(|header| header.height() >= 280)
+            .collect();
         let to_add = self.headers_to_add(&new_headers);
         debug!(
             "adding transactions from {} blocks using {:?}",
@@ -1237,9 +1242,19 @@ fn lookup_txos(
 }
 
 fn lookup_txo(txstore_db: &DB, outpoint: &OutPoint) -> Option<TxOut> {
-    txstore_db
-        .get(&TxOutRow::key(outpoint))
-        .map(|val| deserialize(&val).expect("failed to parse TxOut"))
+    match txstore_db.get(&TxOutRow::key(outpoint)) {
+        Some(data) => match deserialize(&data) {
+            Ok(txo) => Some(txo),
+            Err(e) => {
+                eprintln!("Failed to parse TxOut: {:?}", e);
+                None
+            }
+        },
+        None => {
+            eprintln!("Failed to get data for outpoint: {:?}", outpoint);
+            None
+        }
+    }
 }
 
 fn index_blocks(

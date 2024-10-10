@@ -9,8 +9,6 @@ fn main() {
     use std::collections::HashSet;
     use std::sync::Arc;
 
-    use bitcoin::blockdata::script::Script;
-    use bitcoin::consensus::encode::deserialize;
     use electrs::{
         chain::Transaction,
         config::Config,
@@ -20,6 +18,8 @@ fn main() {
         signal::Waiter,
         util::has_prevout,
     };
+    use satsnet::blockdata::script::Script;
+    use satsnet::consensus::encode::deserialize;
 
     let signal = Waiter::start();
     let config = Config::from_args();

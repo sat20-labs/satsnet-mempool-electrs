@@ -7,16 +7,16 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use base64;
-use bitcoin::hashes::hex::{FromHex, ToHex};
 use glob;
 use hex;
 use itertools::Itertools;
+use satsnet::hashes::hex::{FromHex, ToHex};
 use serde_json::{from_str, from_value, Value};
 
-#[cfg(not(feature = "liquid"))]
-use bitcoin::consensus::encode::{deserialize, serialize};
 #[cfg(feature = "liquid")]
 use elements::encode::{deserialize, serialize};
+#[cfg(not(feature = "liquid"))]
+use satsnet::consensus::encode::{deserialize, serialize};
 
 use crate::chain::{Block, BlockHash, BlockHeader, Network, Transaction, Txid};
 use crate::errors::*;
@@ -52,7 +52,10 @@ fn header_from_value(value: Value) -> Result<BlockHeader> {
 
 fn block_from_value(value: Value) -> Result<Block> {
     let block_hex = value.as_str().chain_err(|| "non-string block")?;
+    // println!("Block Hex: {}", block_hex);
+    // block_hex = "000040204809ee2b571d6871514bf3b193ee362e3a6c66acd8315a313bfd6aa43c997d7a8e78480ac965e7828d4ca67559ade5b95bb8a078974427c1041fd98ba66a5fcfa6b10467ffff001d56465f6b0201000000010000000000000000000000000000000000000000000000000000000000000000ffffffff18021801088f3b97678f7839360b2f503253482f627463642fffffffff010000000000000000002251201eca94fc175e45d42a907e97eabf3ec76a3237653537cc0f11faf4dfd8c0e1000000000001000000010000000000000000000000000000000000000000000000000000000000000000feffffff7140646137386239626266666462636532393161383365333336623664663433313638653530343162636133656664323063323565646564373064326233666231342251207e4e20121cd42053d971944ddd24d8442707062e4815d2b4090b7a62a18c411a0340420f08755ef2c77650b08bffffffff0140420f000000000002fe80841e00fe20a10700fe404b4c00fe20a107002251207e4e20121cd42053d971944ddd24d8442707062e4815d2b4090b7a62a18c411a00000000";
     let block_bytes = hex::decode(block_hex).chain_err(|| "non-hex block")?;
+    // println!("Block Bytes: {:?}", block_bytes);
     deserialize(&block_bytes).chain_err(|| format!("failed to parse block {}", block_hex))
 }
 
@@ -522,9 +525,13 @@ impl Daemon {
             .map(|hash| json!([hash.to_hex(), /*verbose=*/ 0]))
             .collect();
         let values = self.requests("getblock", &params_list)?;
+        // let mut count = 0;
         let mut blocks = vec![];
         for value in values {
-            blocks.push(block_from_value(value)?);
+            let block = block_from_value(value)?;
+            // trace!("[count] | {count}");
+            // count += 1;
+            blocks.push(block);
         }
         Ok(blocks)
     }

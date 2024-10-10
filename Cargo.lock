@@ -961,7 +961,6 @@ dependencies = [
  "arrayref",
  "base64 0.13.0",
  "bincode",
- "bitcoin 0.28.0",
  "bounded-vec-deque",
  "clap",
  "crossbeam-channel",
@@ -985,6 +984,7 @@ dependencies = [
  "reqwest",
  "rocksdb",
  "rustls-pemfile",
+ "satsnet",
  "serde",
  "serde_derive",
  "serde_json",
@@ -1594,6 +1594,18 @@ name = "ryu"
 version = "1.0.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "73b4b750c782965c211b42f022f59af1fbceabdd026623714f104152f1ec149f"
+
+[[package]]
+name = "satsnet"
+version = "0.28.9-mempool-electrs"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2e42ef370de617d67be57b01b755b4dca45908b16fef54255b98bed632d57835"
+dependencies = [
+ "bech32",
+ "bitcoin_hashes 0.10.0",
+ "secp256k1 0.22.1",
+ "serde",
+]
 
 [[package]]
 name = "schannel"

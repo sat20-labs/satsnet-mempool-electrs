@@ -45,11 +45,55 @@
                 "--db-dir",
                 "./data",
                 "--daemon-rpc-host",
-                "192.168.10.188:8337",
+                "192.168.10.103:8337",
                 "--network",
                 "mainnet",
                 "--daemon-cert-path",
                 "./rpc.cert",
+                "--address-search",
+                "--index-unspendables",
+                "--cors",
+                "*",
+                "--http-addr",
+                "0.0.0.0:3000",
+                "--jsonrpc-import"
+            ],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "RUST_BACKTRACE": "1"
+            }
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'electrs-satsnet'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=electrs",
+                    "--package=mempool-electrs"
+                ],
+                "filter": {
+                    "name": "electrs",
+                    "kind": "bin"
+                }
+            },
+            "args": [
+                "-vvvv",
+                "--cookie",
+                "q17AIoqBJSEhW7djqjn0nTsZcz4=:nnlkAZn58bqsyYwVtHIajZ16cj8=",
+                "--db-dir",
+                "./data-satsnet",
+                "--daemon-rpc-host",
+                "192.168.10.104:14827",
+                "--network",
+                "testnet4",
+                "--daemon-cert-path",
+                "./satsnet-rpc2.cert",
+                "--utxos-limit",
+                "5000",
+                "--electrum-txs-limit",
+                "5000",
                 "--address-search",
                 "--index-unspendables",
                 "--cors",
