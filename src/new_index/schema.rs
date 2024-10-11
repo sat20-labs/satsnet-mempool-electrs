@@ -13,13 +13,10 @@ use satsnet::util::merkleblock::MerkleBlock;
 use satsnet::VarInt;
 use sha2::{Digest, Sha256};
 
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::convert::TryInto;
 use std::path::Path;
 use std::sync::{Arc, RwLock};
-use std::{
-    collections::{BTreeSet, HashMap, HashSet},
-    str::FromStr,
-};
 
 use crate::chain::{
     BlockHash, BlockHeader, Network, OutPoint, Script, Transaction, TxOut, Txid, Value,
