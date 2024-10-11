@@ -1,27 +1,30 @@
-use itertools::Itertools;
-use rayon::prelude::*;
-use satsnet::hashes::sha256d::Hash as Sha256dHash;
-#[cfg(not(feature = "liquid"))]
-use satsnet::util::merkleblock::MerkleBlock;
-use satsnet::VarInt;
-use sha2::{Digest, Sha256};
-
 #[cfg(feature = "liquid")]
 use elements::{
     encode::{deserialize, serialize},
     AssetId,
 };
+use itertools::Itertools;
+use rayon::prelude::*;
 #[cfg(not(feature = "liquid"))]
 use satsnet::consensus::encode::{deserialize, serialize};
+use satsnet::hashes::{hex::FromHex, sha256d::Hash as Sha256dHash};
+#[cfg(not(feature = "liquid"))]
+use satsnet::util::merkleblock::MerkleBlock;
+use satsnet::VarInt;
+use sha2::{Digest, Sha256};
 
-use std::collections::{BTreeSet, HashMap, HashSet};
 use std::convert::TryInto;
 use std::path::Path;
 use std::sync::{Arc, RwLock};
+use std::{
+    collections::{BTreeSet, HashMap, HashSet},
+    str::FromStr,
+};
 
 use crate::chain::{
     BlockHash, BlockHeader, Network, OutPoint, Script, Transaction, TxOut, Txid, Value,
 };
+
 use crate::config::Config;
 use crate::daemon::Daemon;
 use crate::errors::*;
@@ -269,13 +272,13 @@ impl Indexer {
     pub fn update(&mut self, daemon: &Daemon) -> Result<BlockHash> {
         let daemon = daemon.reconnect()?;
         let tip = daemon.getbestblockhash()?;
-        // let new_headers = self.get_new_headers(&daemon, &tip)?;
+        let new_headers = self.get_new_headers(&daemon, &tip)?;
 
-        let new_headers: Vec<HeaderEntry> = self
-            .get_new_headers(&daemon, &tip)?
-            .into_iter()
-            .filter(|header| header.height() >= 280)
-            .collect();
+        // let new_headers: Vec<HeaderEntry> = self
+        //     .get_new_headers(&daemon, &tip)?
+        //     .into_iter()
+        //     .filter(|header| header.height() >= 280)
+        //     .collect();
         let to_add = self.headers_to_add(&new_headers);
         debug!(
             "adding transactions from {} blocks using {:?}",
@@ -1190,16 +1193,50 @@ fn add_transaction(
 }
 
 fn get_previous_txos(block_entries: &[BlockEntry]) -> BTreeSet<OutPoint> {
-    block_entries
+    let entries = block_entries
         .iter()
-        .flat_map(|b| b.block.txdata.iter())
-        .flat_map(|tx| {
-            tx.input
-                .iter()
-                .filter(|txin| has_prevout(txin))
-                .map(|txin| txin.previous_output)
+        .flat_map(|b| {
+            let height = b.entry.height;
+            b.block.txdata.iter().flat_map(move |tx| {
+                tx.input
+                    .iter()
+                    .filter(move |txin| {
+                        let ret = has_prevout(txin);
+                        let hash = match Txid::from_hex(
+                            "0000000000000000000000000000000000000000000000000000000000000000",
+                        ) {
+                            Ok(h) => h,
+                            Err(e) => {
+                                println!("Error parsing hash: {}", e);
+                                panic!("Error parsing hash");
+                            }
+                        };
+                        let skip_outpoint = OutPoint {
+                            txid: hash,
+                            vout: 4294967294,
+                        };
+                        println!(
+                            "previous_output: {}, has_prevout: {}, height: {}",
+                            txin.previous_output, ret, height
+                        );
+                        let ret1 = txin.previous_output != skip_outpoint;
+                        ret && ret1
+                    })
+                    .map(move |txin| {
+                        println!(
+                            "map: previous_output: {}, height: {}",
+                            txin.previous_output, height
+                        );
+                        // println!("height: {}", height);
+                        txin.previous_output
+                    })
+            })
         })
-        .collect()
+        .collect();
+    for entry in &entries {
+        println!("{:?}", entry);
+    }
+    entries
 }
 
 fn lookup_txos(
@@ -1207,6 +1244,9 @@ fn lookup_txos(
     outpoints: &BTreeSet<OutPoint>,
     allow_missing: bool,
 ) -> HashMap<OutPoint, TxOut> {
+    for outpoint in outpoints {
+        println!("{:?}", outpoint);
+    }
     let mut loop_count = 10;
     let pool = loop {
         match rayon::ThreadPoolBuilder::new()
@@ -1224,6 +1264,7 @@ fn lookup_txos(
             }
         }
     };
+
     pool.install(|| {
         outpoints
             .par_iter()
@@ -1322,6 +1363,22 @@ fn index_transaction(
     }
     for (txi_index, txi) in tx.input.iter().enumerate() {
         if !has_prevout(txi) {
+            continue;
+        }
+        let hash = match Txid::from_hex(
+            "0000000000000000000000000000000000000000000000000000000000000000",
+        ) {
+            Ok(h) => h,
+            Err(e) => {
+                println!("Error parsing hash: {}", e);
+                panic!("Error parsing hash");
+            }
+        };
+        let skip_outpoint = OutPoint {
+            txid: hash,
+            vout: 4294967294,
+        };
+        if txi.previous_output == skip_outpoint {
             continue;
         }
         let prev_txo = previous_txos_map

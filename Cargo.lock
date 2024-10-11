@@ -1597,9 +1597,9 @@ checksum = "73b4b750c782965c211b42f022f59af1fbceabdd026623714f104152f1ec149f"
 
 [[package]]
 name = "satsnet"
-version = "0.28.9-mempool-electrs"
+version = "0.28.10-mempool-electrs"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2e42ef370de617d67be57b01b755b4dca45908b16fef54255b98bed632d57835"
+checksum = "62761a117112debb5c5ad75423ac3582c82dfe22f076591956087db165e4b910"
 dependencies = [
  "bech32",
  "bitcoin_hashes 0.10.0",

@@ -81,9 +81,16 @@ fn btcd_fetcher(
                 // let test1: std::result::Result<Vec<Block>, Error> = daemon.getblocks(&blockhashes);
                 // println!("{:?}", test1);
                 // trace!("[count] | {test1}");
-                let blocks = daemon
-                    .getblocks(&blockhashes)
-                    .expect("failed to get blocks from btcd");
+                // let blocks = daemon
+                //     .getblocks(&blockhashes)
+                //     .expect("failed to get blocks from btcd");
+                let blocks = match daemon.getblocks(&blockhashes) {
+                    Ok(blocks) => blocks,
+                    Err(e) => {
+                        println!("Error getting blocks from btcd: {}", e);
+                        panic!("failed to get blocks from btcd");
+                    }
+                };
                 assert_eq!(blocks.len(), entries.len());
                 let block_entries: Vec<BlockEntry> = blocks
                     .into_iter()

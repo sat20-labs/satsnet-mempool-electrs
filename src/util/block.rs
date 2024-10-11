@@ -30,9 +30,9 @@ impl From<&HeaderEntry> for BlockId {
 
 #[derive(Eq, PartialEq, Clone)]
 pub struct HeaderEntry {
-    height: usize,
-    hash: BlockHash,
-    header: BlockHeader,
+    pub height: usize,
+    pub hash: BlockHash,
+    pub header: BlockHeader,
 }
 
 impl HeaderEntry {
