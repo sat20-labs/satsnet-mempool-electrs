@@ -1151,9 +1151,25 @@ fn add_blocks(block_entries: &[BlockEntry], iconfig: &IndexerConfig) -> Vec<DBRo
         .map(|b| {
             let mut rows = vec![];
             let blockhash = full_hash(&b.entry.hash()[..]);
+            let height = b.entry.height;
+            if height == 295 {
+                eprint!("height: {} ", height);
+                eprint!("blockhash: {} ", b.entry.hash());
+            }
             let txids: Vec<Txid> = b.block.txdata.iter().map(|tx| tx.txid()).collect();
+            for txid in &txids {
+                eprint!("txid: {} ", txid);
+            }
             for tx in &b.block.txdata {
                 add_transaction(tx, blockhash, &mut rows, iconfig);
+                // if height == 295 {
+                //     // self.lookup_txn(&txid, Some(hash))
+                //     let txid = tx.txid();
+                //     let rawtx = store.txstore_db.get(&TxRow::key(&txid[..])).unwrap();
+                //     let tx: Transaction = deserialize(&rawtx).expect("failed to parse Transaction");
+
+                //     eprint!("info: {} ", tx.txid());
+                // }
             }
 
             if !iconfig.light_mode {
@@ -1198,26 +1214,12 @@ fn get_previous_txos(block_entries: &[BlockEntry]) -> BTreeSet<OutPoint> {
                 tx.input
                     .iter()
                     .filter(move |txin| {
-                        let ret = has_prevout(txin);
-                        let hash = match Txid::from_hex(
-                            "0000000000000000000000000000000000000000000000000000000000000000",
-                        ) {
-                            Ok(h) => h,
-                            Err(e) => {
-                                println!("Error parsing hash: {}", e);
-                                panic!("Error parsing hash");
-                            }
-                        };
-                        let skip_outpoint = OutPoint {
-                            txid: hash,
-                            vout: 4294967294,
-                        };
-                        println!(
-                            "previous_output: {}, has_prevout: {}, height: {}",
-                            txin.previous_output, ret, height
-                        );
-                        let ret1 = txin.previous_output != skip_outpoint;
-                        ret && ret1
+                        let ret = has_prevout(txin) && txin.previous_output != get_skip_outpoint();
+                        // println!(
+                        //     "previous_output: {}, has_prevout: {}, height: {}",
+                        //     txin.previous_output, ret, height
+                        // );
+                        ret
                     })
                     .map(move |txin| {
                         println!(
@@ -1241,9 +1243,9 @@ fn lookup_txos(
     outpoints: &BTreeSet<OutPoint>,
     allow_missing: bool,
 ) -> HashMap<OutPoint, TxOut> {
-    for outpoint in outpoints {
-        println!("{:?}", outpoint);
-    }
+    // for outpoint in &outpoints {
+    //     println!("{:?}", outpoint);
+    // }
     let mut loop_count = 10;
     let pool = loop {
         match rayon::ThreadPoolBuilder::new()
@@ -1359,23 +1361,7 @@ fn index_transaction(
         }
     }
     for (txi_index, txi) in tx.input.iter().enumerate() {
-        if !has_prevout(txi) {
-            continue;
-        }
-        let hash = match Txid::from_hex(
-            "0000000000000000000000000000000000000000000000000000000000000000",
-        ) {
-            Ok(h) => h,
-            Err(e) => {
-                println!("Error parsing hash: {}", e);
-                panic!("Error parsing hash");
-            }
-        };
-        let skip_outpoint = OutPoint {
-            txid: hash,
-            vout: 4294967294,
-        };
-        if txi.previous_output == skip_outpoint {
+        if !has_prevout(txi) || txi.previous_output == get_skip_outpoint() {
             continue;
         }
         let prev_txo = previous_txos_map
@@ -1441,6 +1427,22 @@ pub fn compute_script_hash(script: &Script) -> FullHash {
 
 pub fn parse_hash(hash: &FullHash) -> Sha256dHash {
     deserialize(hash).expect("failed to parse Sha256dHash")
+}
+
+pub fn get_skip_outpoint() -> OutPoint {
+    let hash =
+        match Txid::from_hex("0000000000000000000000000000000000000000000000000000000000000000") {
+            Ok(h) => h,
+            Err(e) => {
+                println!("Error parsing hash: {}", e);
+                panic!("Error parsing hash");
+            }
+        };
+    let skip_outpoint = OutPoint {
+        txid: hash,
+        vout: 4294967294,
+    };
+    skip_outpoint
 }
 
 #[derive(Serialize, Deserialize)]

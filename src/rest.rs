@@ -22,6 +22,7 @@ use satsnet::hashes::Error as HashError;
 use tokio::sync::oneshot;
 
 use hyperlocal::UnixServerExt;
+use std::collections::BTreeSet;
 use std::{cmp, fs};
 #[cfg(feature = "liquid")]
 use {
@@ -162,25 +163,58 @@ impl TransactionValue {
         txos: &HashMap<OutPoint, TxOut>,
         config: &Config,
     ) -> Result<Self, errors::Error> {
-        let prevouts = extract_tx_prevouts(&tx, txos)?;
-        let sigops = transaction_sigop_count(&tx, &prevouts)
-            .map_err(|_| errors::Error::from("Couldn't count sigops"))? as u32;
+        // let prevouts = extract_tx_prevouts(&tx, txos)?;
+        let prevouts = if txos.is_empty() {
+            HashMap::new()
+        } else {
+            extract_tx_prevouts(&tx, txos)?
+        };
+        // let sigops = transaction_sigop_count(&tx, &prevouts)
+        //     .map_err(|_| errors::Error::from("Couldn't count sigops"))? as u32;
+        let sigops = if prevouts.len() != 0 {
+            transaction_sigop_count(&tx, &prevouts).unwrap_or(0) as u32
+        } else {
+            0 as u32
+        };
 
-        let vins: Vec<TxInValue> = tx
-            .input
-            .iter()
-            .enumerate()
-            .map(|(index, txin)| {
-                TxInValue::new(txin, prevouts.get(&(index as u32)).cloned(), config)
-            })
-            .collect();
+        // let vins: Vec<TxInValue> = tx
+        //     .input
+        //     .iter()
+        //     .enumerate()
+        //     .map(|(index, txin)| {
+        //         TxInValue::new(txin, prevouts.get(&(index as u32)).cloned(), config)
+        //     })
+        //     .collect();
+        let vins: Vec<TxInValue> = if prevouts.len() != 0 {
+            tx.input
+                .iter()
+                .enumerate()
+                .map(|(index, txin)| {
+                    TxInValue::new(txin, prevouts.get(&(index as u32)).cloned(), config)
+                })
+                .collect()
+        } else {
+            tx.input
+                .iter()
+                .enumerate()
+                .map(|(index, txin)| {
+                    TxInValue::new(txin, prevouts.get(&(index as u32)).cloned(), config)
+                })
+                .collect()
+            // Vec::new()
+        };
+
         let vouts: Vec<TxOutValue> = tx
             .output
             .iter()
             .map(|txout| TxOutValue::new(txout, config))
             .collect();
 
-        let fee = get_tx_fee(&tx, &prevouts, config.network_type);
+        let fee = if prevouts.len() == 0 {
+            0
+        } else {
+            get_tx_fee(&tx, &prevouts, config.network_type)
+        };
 
         #[allow(clippy::unnecessary_cast)]
         Ok(TransactionValue {
@@ -547,7 +581,7 @@ fn prepare_txs(
     query: &Query,
     config: &Config,
 ) -> Vec<TransactionValue> {
-    let outpoints = txs
+    let outpoints: BTreeSet<OutPoint> = txs
         .iter()
         .flat_map(|(tx, _)| {
             tx.input
@@ -555,8 +589,10 @@ fn prepare_txs(
                 .filter(|txin| has_prevout(txin))
                 .map(|txin| txin.previous_output)
         })
+        .filter(|outpoint| *outpoint != crate::new_index::schema::get_skip_outpoint())
         .collect();
 
+    // let skip_outpoint = query.getsk
     let prevouts = query.lookup_txos(&outpoints);
 
     txs.into_iter()
