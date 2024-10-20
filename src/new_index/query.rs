@@ -213,7 +213,7 @@ impl Query {
     }
 
     fn update_fee_estimates(&self) {
-        match self.daemon.estimatefee_batch(&CONF_TARGETS) {
+        match self.daemon.estimatesmartfee_batch(&CONF_TARGETS) {
             Ok(estimates) => {
                 *self.cached_estimates.write().unwrap() = (estimates, Some(Instant::now()));
             }
