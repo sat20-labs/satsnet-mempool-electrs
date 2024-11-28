@@ -1,34 +1,29 @@
 use std::collections::{HashMap, HashSet};
-
-use std::fs;
-use std::io::Read;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use base64;
+use bitcoin::hashes::hex::{FromHex, ToHex};
 use glob;
 use hex;
 use itertools::Itertools;
-use satsnet::hashes::hex::{FromHex, ToHex};
 use serde_json::{from_str, from_value, Value};
 
+#[cfg(not(feature = "liquid"))]
+use bitcoin::consensus::encode::{deserialize, serialize};
 #[cfg(feature = "liquid")]
 use elements::encode::{deserialize, serialize};
-#[cfg(not(feature = "liquid"))]
-use satsnet::consensus::encode::{deserialize, serialize};
 
 use crate::chain::{Block, BlockHash, BlockHeader, Network, Transaction, Txid};
-use crate::errors::*;
 use crate::metrics::{HistogramOpts, HistogramVec, Metrics};
 use crate::signal::Waiter;
 use crate::util::HeaderList;
 
 use log::{debug, info, warn};
-use openssl::x509::X509;
-
 use reqwest::blocking::{Client, Response};
 use reqwest::header::AUTHORIZATION;
+use crate::errors::*;
 
 fn parse_hash<T>(value: &Value) -> Result<T>
 where
@@ -109,16 +104,21 @@ pub struct BlockchainInfo {
     pub blocks: u32,
     pub headers: u32,
     pub bestblockhash: String,
+    // pub pruned: bool,
+    // pub verificationprogress: f32,
+    // pub initialblockdownload: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct MempoolInfo {
     pub size: u32,
+    //  pub loaded: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 struct NetworkInfo {
     version: u64,
+    // subversion: String,
     relayfee: f64, // in BTC/kB
 }
 
@@ -142,6 +142,34 @@ pub struct MempoolAcceptResult {
     reject_reason: Option<String>,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+struct MempoolFeesSubmitPackage {
+    base: f64,
+    #[serde(rename = "effective-feerate")]
+    effective_feerate: Option<f64>,
+    #[serde(rename = "effective-includes")]
+    effective_includes: Option<Vec<String>>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct SubmitPackageResult {
+    package_msg: String,
+    #[serde(rename = "tx-results")]
+    tx_results: HashMap<String, TxResult>,
+    #[serde(rename = "replaced-transactions")]
+    replaced_transactions: Option<Vec<String>>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct TxResult {
+    txid: String,
+    #[serde(rename = "other-wtxid")]
+    other_wtxid: Option<String>,
+    vsize: Option<u32>,
+    fees: Option<MempoolFeesSubmitPackage>,
+    error: Option<String>,
+}
+
 pub trait CookieGetter: Send + Sync {
     fn get(&self) -> Result<Vec<u8>>;
 }
@@ -150,33 +178,16 @@ struct Connection {
     client: Client,
     cookie_getter: Arc<dyn CookieGetter>,
     url: String,
-    cert_path: Option<PathBuf>,
     signal: Waiter,
-}
-
-fn validate_cert_path(cert_path: &PathBuf) -> Result<()> {
-    let mut file = fs::File::open(cert_path).chain_err(|| "Failed to open cert file")?;
-    let mut buffer = Vec::new();
-    file.read_to_end(&mut buffer)
-        .chain_err(|| "Failed to read cert file")?;
-    X509::from_pem(&buffer).chain_err(|| "Invalid certificate")?;
-
-    Ok(())
 }
 
 impl Connection {
     fn new(
         url: String,
-        cert_path: Option<PathBuf>,
         cookie_getter: Arc<dyn CookieGetter>,
         signal: Waiter,
     ) -> Result<Connection> {
-        if let Some(ref path) = cert_path {
-            validate_cert_path(path)?;
-        }
-
         let client = Client::builder()
-            .danger_accept_invalid_certs(cert_path.is_some())
             .build()
             .chain_err(|| "Failed to build client")?;
 
@@ -184,7 +195,6 @@ impl Connection {
             client,
             cookie_getter,
             url,
-            cert_path,
             signal,
         })
     }
@@ -192,7 +202,6 @@ impl Connection {
     fn reconnect(&self) -> Result<Connection> {
         Connection::new(
             self.url.clone(),
-            self.cert_path.clone(),
             self.cookie_getter.clone(),
             self.signal.clone(),
         )
@@ -269,7 +278,6 @@ impl Daemon {
         daemon_dir: PathBuf,
         blocks_dir: PathBuf,
         daemon_rpc_url: String,
-        daemon_cert_path: Option<PathBuf>,
         cookie_getter: Arc<dyn CookieGetter>,
         network: Network,
         magic: Option<u32>,
@@ -283,7 +291,6 @@ impl Daemon {
             magic,
             conn: Mutex::new(Connection::new(
                 daemon_rpc_url.clone(),
-                daemon_cert_path,
                 cookie_getter,
                 signal.clone(),
             )?),
@@ -599,7 +606,25 @@ impl Daemon {
             .chain_err(|| "invalid testmempoolaccept reply")
     }
 
-    // TODO need implement estimatesmartfee in satsnet
+    pub fn submit_package(
+        &self,
+        txhex: Vec<String>,
+        maxfeerate: Option<f64>,
+        maxburnamount: Option<f64>,
+    ) -> Result<SubmitPackageResult> {
+        let params = match (maxfeerate, maxburnamount) {
+            (Some(rate), Some(burn)) => {
+                json!([txhex, format!("{:.8}", rate), format!("{:.8}", burn)])
+            }
+            (Some(rate), None) => json!([txhex, format!("{:.8}", rate)]),
+            (None, Some(burn)) => json!([txhex, null, format!("{:.8}", burn)]),
+            (None, None) => json!([txhex]),
+        };
+        let result = self.request("submitpackage", params)?;
+        serde_json::from_value::<SubmitPackageResult>(result)
+            .chain_err(|| "invalid submitpackage reply")
+    }
+
     // Get estimated feerates for the provided confirmation targets using a batch RPC request
     // Missing estimates are logged but do not cause a failure, whatever is available is returned
     #[allow(clippy::float_cmp)]

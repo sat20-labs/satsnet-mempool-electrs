@@ -38,7 +38,6 @@ pub struct Config {
     pub daemon_dir: PathBuf,
     pub blocks_dir: PathBuf,
     pub daemon_rpc_host: String,
-    pub daemon_cert_path: Option<PathBuf>,
     pub cookie: Option<String>,
     pub electrum_rpc_addr: SocketAddr,
     pub http_addr: SocketAddr,
@@ -442,8 +441,6 @@ impl Config {
             .map(String::from)
             .unwrap_or_else(|| format!("127.0.0.1:{}", default_daemon_port));
 
-        let daemon_cert_path = m.value_of("daemon_cert_path").map(PathBuf::from);
-
         let electrum_rpc_addr: SocketAddr = str_to_socketaddr(
             m.value_of("electrum_rpc_addr")
                 .unwrap_or(&format!("127.0.0.1:{}", default_electrum_port)),
@@ -521,7 +518,6 @@ impl Config {
             daemon_dir,
             blocks_dir,
             daemon_rpc_host,
-            daemon_cert_path,
             cookie,
             utxos_limit: value_t_or_exit!(m, "utxos_limit", usize),
             electrum_rpc_addr,

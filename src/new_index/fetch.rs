@@ -1,9 +1,9 @@
 use rayon::prelude::*;
 
+#[cfg(not(feature = "liquid"))]
+use bitcoin::consensus::encode::{deserialize, Decodable};
 #[cfg(feature = "liquid")]
 use elements::encode::{deserialize, Decodable};
-#[cfg(not(feature = "liquid"))]
-use satsnet::consensus::encode::{deserialize, Decodable};
 
 use std::collections::HashMap;
 use std::fs;
@@ -18,7 +18,7 @@ use crate::util::{spawn_thread, HeaderEntry, SyncChannel};
 
 #[derive(Clone, Copy, Debug)]
 pub enum FetchFrom {
-    Btcd,
+    Bitcoind,
     BlkFiles,
 }
 
@@ -28,7 +28,7 @@ pub fn start_fetcher(
     new_headers: Vec<HeaderEntry>,
 ) -> Result<Fetcher<Vec<BlockEntry>>> {
     let fetcher = match from {
-        FetchFrom::Btcd => btcd_fetcher,
+        FetchFrom::Bitcoind => bitcoind_fetcher,
         FetchFrom::BlkFiles => blkfiles_fetcher,
     };
     fetcher(daemon, new_headers)
@@ -63,7 +63,7 @@ impl<T> Fetcher<T> {
     }
 }
 
-fn btcd_fetcher(
+fn bitcoind_fetcher(
     daemon: &Daemon,
     new_headers: Vec<HeaderEntry>,
 ) -> Result<Fetcher<Vec<BlockEntry>>> {
@@ -75,22 +75,12 @@ fn btcd_fetcher(
     let sender = chan.sender();
     Ok(Fetcher::from(
         chan.into_receiver(),
-        spawn_thread("btcd_fetcher", move || {
+        spawn_thread("bitcoind_fetcher", move || {
             for entries in new_headers.chunks(100) {
                 let blockhashes: Vec<BlockHash> = entries.iter().map(|e| *e.hash()).collect();
-                // let test1: std::result::Result<Vec<Block>, Error> = daemon.getblocks(&blockhashes);
-                // println!("{:?}", test1);
-                // trace!("[count] | {test1}");
-                // let blocks = daemon
-                //     .getblocks(&blockhashes)
-                //     .expect("failed to get blocks from btcd");
-                let blocks = match daemon.getblocks(&blockhashes) {
-                    Ok(blocks) => blocks,
-                    Err(e) => {
-                        println!("Error getting blocks from btcd: {}", e);
-                        panic!("failed to get blocks from btcd");
-                    }
-                };
+                let blocks = daemon
+                    .getblocks(&blockhashes)
+                    .expect("failed to get blocks from bitcoind");
                 assert_eq!(blocks.len(), entries.len());
                 let block_entries: Vec<BlockEntry> = blocks
                     .into_iter()
