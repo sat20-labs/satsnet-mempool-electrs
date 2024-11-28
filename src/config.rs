@@ -163,12 +163,6 @@ impl Config {
                     .takes_value(true),
             )
             .arg(
-                Arg::with_name("daemon_cert_path")
-                    .long("daemon-cert-path")
-                    .help("Path to the btcd daemon TLS certificate")
-                    .takes_value(true)
-            )
-            .arg(
                 Arg::with_name("monitoring_addr")
                     .long("monitoring-addr")
                     .help("Prometheus monitoring 'addr:port' to listen on (default: 127.0.0.1:4224 for mainnet, 127.0.0.1:14224 for testnet and 127.0.0.1:24224 for regtest)")
