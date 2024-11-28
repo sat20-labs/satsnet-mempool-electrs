@@ -9,6 +9,8 @@ fn main() {
     use std::collections::HashSet;
     use std::sync::Arc;
 
+    use bitcoin::blockdata::script::Script;
+    use bitcoin::consensus::encode::deserialize;
     use electrs::{
         chain::Transaction,
         config::Config,
@@ -18,8 +20,6 @@ fn main() {
         signal::Waiter,
         util::has_prevout,
     };
-    use satsnet::blockdata::script::Script;
-    use satsnet::consensus::encode::deserialize;
 
     let signal = Waiter::start();
     let config = Config::from_args();
@@ -32,8 +32,7 @@ fn main() {
         Daemon::new(
             config.daemon_dir.clone(),
             config.blocks_dir.clone(),
-            format!("https://{}", config.daemon_rpc_host),
-            config.daemon_cert_path.clone(),
+            config.daemon_rpc_addr,
             config.cookie_getter(),
             config.network_type,
             config.magic,
@@ -45,7 +44,7 @@ fn main() {
 
     let chain = ChainQuery::new(Arc::clone(&store), Arc::clone(&daemon), &config, &metrics);
 
-    let mut indexer = Indexer::open(Arc::clone(&store), FetchFrom::Btcd, &config, &metrics);
+    let mut indexer = Indexer::open(Arc::clone(&store), FetchFrom::Bitcoind, &config, &metrics);
     indexer.update(&daemon).unwrap();
 
     let mut iter = store.txstore_db().raw_iterator();

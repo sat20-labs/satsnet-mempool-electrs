@@ -32,7 +32,7 @@ fn fetch_from(config: &Config, store: &Store) -> FetchFrom {
 
     if jsonrpc_import {
         // slower, uses JSONRPC (good for incremental updates)
-        FetchFrom::Btcd
+        FetchFrom::Bitcoind
     } else {
         // faster, uses blk*.dat files (good for initial indexing)
         FetchFrom::BlkFiles
@@ -47,8 +47,7 @@ fn run_server(config: Arc<Config>) -> Result<()> {
     let daemon = Arc::new(Daemon::new(
         config.daemon_dir.clone(),
         config.blocks_dir.clone(),
-        format!("https://{}", config.daemon_rpc_host),
-        config.daemon_cert_path.clone(),
+        config.daemon_rpc_addr,
         config.cookie_getter(),
         config.network_type,
         config.magic,

@@ -4,6 +4,4 @@ target
 *.sublime*
 *~
 *.pyc
-# .vscode
-data
-data-satsnet
+.vscode

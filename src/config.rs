@@ -37,8 +37,7 @@ pub struct Config {
     pub db_path: PathBuf,
     pub daemon_dir: PathBuf,
     pub blocks_dir: PathBuf,
-    pub daemon_rpc_host: String,
-    pub daemon_cert_path: Option<PathBuf>,
+    pub daemon_rpc_addr: SocketAddr,
     pub cookie: Option<String>,
     pub electrum_rpc_addr: SocketAddr,
     pub http_addr: SocketAddr,
@@ -158,16 +157,10 @@ impl Config {
                     .takes_value(true),
             )
             .arg(
-                Arg::with_name("daemon_rpc_host")
-                    .long("daemon-rpc-host")
-                    .help("btcd daemon JSONRPC 'addr:port' to connect (default: 127.0.0.1:8332 for mainnet, 127.0.0.1:18332 for testnet and 127.0.0.1:18443 for regtest)")
+                Arg::with_name("daemon_rpc_addr")
+                    .long("daemon-rpc-addr")
+                    .help("Bitcoin daemon JSONRPC 'addr:port' to connect (default: 127.0.0.1:8332 for mainnet, 127.0.0.1:18332 for testnet and 127.0.0.1:18443 for regtest)")
                     .takes_value(true),
-            )
-            .arg(
-                Arg::with_name("daemon_cert_path")
-                    .long("daemon-cert-path")
-                    .help("Path to the btcd daemon TLS certificate")
-                    .takes_value(true)
             )
             .arg(
                 Arg::with_name("monitoring_addr")
@@ -437,13 +430,11 @@ impl Config {
             Network::LiquidRegtest => 44224,
         };
 
-        let daemon_rpc_host: String = m
-            .value_of("daemon_rpc_host")
-            .map(String::from)
-            .unwrap_or_else(|| format!("127.0.0.1:{}", default_daemon_port));
-
-        let daemon_cert_path = m.value_of("daemon_cert_path").map(PathBuf::from);
-
+        let daemon_rpc_addr: SocketAddr = str_to_socketaddr(
+            m.value_of("daemon_rpc_addr")
+                .unwrap_or(&format!("127.0.0.1:{}", default_daemon_port)),
+            "Bitcoin RPC",
+        );
         let electrum_rpc_addr: SocketAddr = str_to_socketaddr(
             m.value_of("electrum_rpc_addr")
                 .unwrap_or(&format!("127.0.0.1:{}", default_electrum_port)),
@@ -520,8 +511,7 @@ impl Config {
             db_path,
             daemon_dir,
             blocks_dir,
-            daemon_rpc_host,
-            daemon_cert_path,
+            daemon_rpc_addr,
             cookie,
             utxos_limit: value_t_or_exit!(m, "utxos_limit", usize),
             electrum_rpc_addr,
