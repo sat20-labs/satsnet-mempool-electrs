@@ -160,7 +160,7 @@ pub fn bitcoin_genesis_hash(network: Network) -> bitcoin::BlockHash {
         Network::Regtest => *REGTEST_GENESIS,
         Network::Signet => *SIGNET_GENESIS,
         Network::Satsnet => *BITCOIN_GENESIS,
-        Network::Satstestnet => *TESTNET_GENESIS,
+        Network::Satstestnet => *TESTNET4_GENESIS,
     }
     #[cfg(feature = "liquid")]
     match network {
