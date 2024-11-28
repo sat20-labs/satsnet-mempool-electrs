@@ -372,6 +372,10 @@ impl Config {
             Network::Signet => 38332,
             #[cfg(not(feature = "liquid"))]
             Network::Testnet4 => 48332,
+            #[cfg(not(feature = "liquid"))]
+            Network::Satsnet => 4827,
+            #[cfg(not(feature = "liquid"))]
+            Network::Satstestnet => 14827,
 
             #[cfg(feature = "liquid")]
             Network::Liquid => 7041,
@@ -389,6 +393,10 @@ impl Config {
             Network::Regtest => 60401,
             #[cfg(not(feature = "liquid"))]
             Network::Signet => 60601,
+            #[cfg(not(feature = "liquid"))]
+            Network::Satsnet => 20001,
+            #[cfg(not(feature = "liquid"))]
+            Network::Satstestnet => 30001,
 
             #[cfg(feature = "liquid")]
             Network::Liquid => 51000,
@@ -403,11 +411,16 @@ impl Config {
             #[cfg(not(feature = "liquid"))]
             Network::Testnet => 3001,
             #[cfg(not(feature = "liquid"))]
+            Network::Testnet4 => 3004,
+            #[cfg(not(feature = "liquid"))]
             Network::Regtest => 3002,
             #[cfg(not(feature = "liquid"))]
             Network::Signet => 3003,
             #[cfg(not(feature = "liquid"))]
-            Network::Testnet4 => 3004,
+            Network::Satsnet => 3005,
+            #[cfg(not(feature = "liquid"))]
+            Network::Satstestnet => 3006,
+
 
             #[cfg(feature = "liquid")]
             Network::Liquid => 3000,
@@ -427,6 +440,10 @@ impl Config {
             Network::Testnet4 => 44224,
             #[cfg(not(feature = "liquid"))]
             Network::Signet => 54224,
+            #[cfg(not(feature = "liquid"))]
+            Network::Satsnet => 54224,
+            #[cfg(not(feature = "liquid"))]
+            Network::Satstestnet => 64224,
 
             #[cfg(feature = "liquid")]
             Network::Liquid => 34224,
@@ -479,6 +496,10 @@ impl Config {
             Network::Regtest => daemon_dir.push("regtest"),
             #[cfg(not(feature = "liquid"))]
             Network::Signet => daemon_dir.push("signet"),
+            #[cfg(not(feature = "liquid"))]
+            Network::Satsnet => daemon_dir.push("satsnet"),
+            #[cfg(not(feature = "liquid"))] 
+            Network::Satstestnet => daemon_dir.push("satstestnet"),
 
             #[cfg(feature = "liquid")]
             Network::Liquid => daemon_dir.push("liquidv1"),

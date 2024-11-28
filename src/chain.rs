@@ -39,6 +39,10 @@ pub enum Network {
     Regtest,
     #[cfg(not(feature = "liquid"))]
     Signet,
+    #[cfg(not(feature = "liquid"))]
+    Satsnet,
+    #[cfg(not(feature = "liquid"))]
+    Satstestnet,
 
     #[cfg(feature = "liquid")]
     Liquid,
@@ -155,6 +159,8 @@ pub fn bitcoin_genesis_hash(network: Network) -> bitcoin::BlockHash {
         Network::Testnet4 => *TESTNET4_GENESIS,
         Network::Regtest => *REGTEST_GENESIS,
         Network::Signet => *SIGNET_GENESIS,
+        Network::Satsnet => *BITCOIN_GENESIS,
+        Network::Satstestnet => *TESTNET_GENESIS,
     }
     #[cfg(feature = "liquid")]
     match network {
@@ -195,6 +201,10 @@ impl From<&str> for Network {
             "regtest" => Network::Regtest,
             #[cfg(not(feature = "liquid"))]
             "signet" => Network::Signet,
+            #[cfg(not(feature = "liquid"))]
+            "satsnet" => Network::Satsnet,
+            #[cfg(not(feature = "liquid"))]
+            "satstestnet" => Network::Satstestnet,
 
             #[cfg(feature = "liquid")]
             "liquid" => Network::Liquid,
@@ -217,6 +227,8 @@ impl From<Network> for BNetwork {
             Network::Testnet4 => BNetwork::Testnet,
             Network::Regtest => BNetwork::Regtest,
             Network::Signet => BNetwork::Signet,
+            Network::Satsnet => BNetwork::Satsnet,
+            Network::Satstestnet => BNetwork::Satstestnet,
         }
     }
 }
@@ -227,8 +239,11 @@ impl From<BNetwork> for Network {
         match network {
             BNetwork::Bitcoin => Network::Bitcoin,
             BNetwork::Testnet => Network::Testnet,
+            BNetwork::Testnet4 => Network::Testnet4,
             BNetwork::Regtest => Network::Regtest,
             BNetwork::Signet => Network::Signet,
+            BNetwork::Satsnet => Network::Satsnet,
+            BNetwork::Satstestnet => Network::Satstestnet,
         }
     }
 }

@@ -85,7 +85,7 @@
                 "--daemon-rpc-host",
                 "192.168.10.103:14827",
                 "--network",
-                "testnet4",
+                "satstestnet",
                 "--utxos-limit",
                 "5000",
                 "--electrum-txs-limit",
