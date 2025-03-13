@@ -545,7 +545,7 @@ impl From<Utxo> for UtxoValue {
     }
 }
 
-#[derive(Serialize, Default)]
+#[derive(Serialize, Default, Debug)]
 struct SpendingValue {
     spent: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1590,6 +1590,9 @@ fn handle_request(
                 })
                 .collect();
 
+            // Debug print the spends variable - 美观格式
+            println!("DEBUG SPENDS: {:#?}", &spends);
+
             json_response(spends, TTL_SHORT)
         }
         (
@@ -1620,6 +1623,9 @@ fn handle_request(
                         })
                 })
                 .collect();
+
+            // Debug print the spends variable - 美观格式
+            println!("DEBUG SPENDS: {:#?}", &spends);
 
             json_response(spends, TTL_SHORT)
         }
@@ -1652,6 +1658,9 @@ fn handle_request(
                     SpendingValue::default()
                 })
                 .collect();
+
+            // Debug print the spends variable - 美观格式
+            println!("DEBUG SPENDS: {:#?}", &spends);
 
             json_response(spends, TTL_SHORT)
         }
