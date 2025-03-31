@@ -118,6 +118,7 @@ fn run_server(config: Arc<Config>) -> Result<()> {
         );
     }
 
+    static mut UPDATE_COUNTER: u64 = 0;
     loop {
         if let Err(err) = signal.wait(Duration::from_millis(config.main_loop_delay), true) {
             info!("stopping server: {}", err);
@@ -139,6 +140,19 @@ fn run_server(config: Arc<Config>) -> Result<()> {
             // the electrum server is stopped when dropped
             break;
         }
+
+        let should_update = unsafe {
+            UPDATE_COUNTER += 1;
+            // 每20次循环才执行一次更新，相当于每10秒 (500ms * 20 = 10000ms = 10s)
+            let result = UPDATE_COUNTER % 20 == 0;
+            result
+        };
+
+        if !should_update {
+            continue;
+        }
+
+        info!("[UPDATE_DEBUG] 执行10秒周期更新 时间: {:?}", std::time::SystemTime::now());
 
         // Index new blocks
         let current_tip = daemon.getbestblockhash()?;
