@@ -188,6 +188,10 @@ impl Connection {
         signal: Waiter,
     ) -> Result<Connection> {
         let client = Client::builder()
+            .pool_idle_timeout(Duration::from_secs(90))  // 连接池中空闲连接的超时时间
+            .pool_max_idle_per_host(32)                  // 每个主机允许的最大空闲连接数
+            .tcp_keepalive(Duration::from_secs(60))      // TCP keepalive 间隔
+            .timeout(Duration::from_secs(30))            // 请求超时时间
             .build()
             .chain_err(|| "Failed to build client")?;
 
