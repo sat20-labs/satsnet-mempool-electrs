@@ -342,7 +342,7 @@ impl Daemon {
                 // info.verificationprogress * 100.0,
                 mempool.size
             );
-            signal.wait(Duration::from_secs(5), false)?;
+            signal.wait(Duration::from_secs(10), false)?;
         }
         Ok(daemon)
     }
