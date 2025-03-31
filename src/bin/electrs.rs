@@ -7,7 +7,7 @@ extern crate electrs;
 use error_chain::ChainedError;
 use std::process;
 use std::sync::{Arc, RwLock};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use electrs::{
     config::Config,
@@ -118,7 +118,8 @@ fn run_server(config: Arc<Config>) -> Result<()> {
         );
     }
 
-    static mut UPDATE_COUNTER: u64 = 0;
+    let mut last_update_time = Instant::now();
+    
     loop {
         if let Err(err) = signal.wait(Duration::from_millis(config.main_loop_delay), true) {
             info!("stopping server: {}", err);
@@ -141,18 +142,14 @@ fn run_server(config: Arc<Config>) -> Result<()> {
             break;
         }
 
-        let should_update = unsafe {
-            UPDATE_COUNTER += 1;
-            // 每20次循环才执行一次更新，相当于每10秒 (500ms * 20 = 10000ms = 10s)
-            let result = UPDATE_COUNTER % 20 == 0;
-            result
-        };
-
-        if !should_update {
+        let now = Instant::now();
+        let elapsed = now.duration_since(last_update_time);
+        
+        if elapsed < Duration::from_secs(10) {
             continue;
         }
-
-        info!("[UPDATE_DEBUG] 执行10秒周期更新 时间: {:?}", std::time::SystemTime::now());
+        last_update_time = now;
+        info!("[UPDATE_DEBUG] executed 10 seconds update at: {:?}", std::time::SystemTime::now());
 
         // Index new blocks
         let current_tip = daemon.getbestblockhash()?;
