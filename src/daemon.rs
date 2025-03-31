@@ -204,6 +204,8 @@ impl Connection {
     }
 
     fn reconnect(&self) -> Result<Connection> {
+        // 在重连之前等待10秒
+        std::thread::sleep(Duration::from_secs(10));
         Connection::new(
             self.url.clone(),
             self.cookie_getter.clone(),
