@@ -960,6 +960,7 @@ version = "3.1.0-dev"
 dependencies = [
  "arrayref",
  "base64 0.13.0",
+ "bech32",
  "bincode",
  "bounded-vec-deque",
  "clap",

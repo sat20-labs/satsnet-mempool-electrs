@@ -2,6 +2,7 @@
 use elements::address as elements_address;
 
 use crate::chain::{script, Network, Script, TxIn, TxOut};
+use crate::util::contract_address_from_script;
 use script::Instruction::PushBytes;
 
 pub struct InnerScripts {
@@ -25,7 +26,8 @@ pub trait ScriptToAddr {
 #[cfg(not(feature = "liquid"))]
 impl ScriptToAddr for bitcoin::Script {
     fn to_address_str(&self, network: Network) -> Option<String> {
-        bitcoin::Address::from_script(self, network.into()).map(|s| s.to_string())
+        contract_address_from_script(self, network)
+            .or_else(|| bitcoin::Address::from_script(self, network.into()).map(|s| s.to_string()))
     }
 }
 #[cfg(feature = "liquid")]

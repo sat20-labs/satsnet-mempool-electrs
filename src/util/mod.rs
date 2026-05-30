@@ -1,4 +1,5 @@
 mod block;
+mod contract;
 mod script;
 mod transaction;
 
@@ -7,6 +8,9 @@ pub mod electrum_merkle;
 pub mod fees;
 
 pub use self::block::{BlockHeaderMeta, BlockId, BlockMeta, BlockStatus, HeaderEntry, HeaderList};
+pub use self::contract::{
+    contract_address_from_script, contract_address_to_script, is_contract_script,
+};
 pub use self::fees::get_tx_fee;
 pub use self::script::{get_innerscripts, ScriptToAddr, ScriptToAsm};
 pub use self::transaction::{

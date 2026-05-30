@@ -4,9 +4,10 @@ use crate::errors;
 use crate::metrics::Metrics;
 use crate::new_index::{compute_script_hash, Query, SpendingInput, Utxo};
 use crate::util::{
-    create_socket, electrum_merkle, extract_tx_prevouts, full_hash, get_innerscripts, get_tx_fee,
-    has_prevout, is_coinbase, transaction_sigop_count, BlockHeaderMeta, BlockId, FullHash,
-    ScriptToAddr, ScriptToAsm, TransactionStatus,
+    contract_address_to_script, create_socket, electrum_merkle, extract_tx_prevouts, full_hash,
+    get_innerscripts, get_tx_fee, has_prevout, is_coinbase, is_contract_script,
+    transaction_sigop_count, BlockHeaderMeta, BlockId, FullHash, ScriptToAddr, ScriptToAsm,
+    TransactionStatus,
 };
 
 #[cfg(not(feature = "liquid"))]
@@ -378,6 +379,8 @@ impl TxOutValue {
             "fee"
         } else if script.is_empty() {
             "empty"
+        } else if is_contract_script(script) {
+            "contract"
         } else if script.is_op_return() {
             "op_return"
         } else if script.is_p2pk() {
@@ -1979,6 +1982,10 @@ fn to_scripthash(
 }
 
 fn address_to_scripthash(addr: &str, network: Network) -> Result<FullHash, HttpError> {
+    if let Ok(script) = contract_address_to_script(addr, network) {
+        return Ok(compute_script_hash(&script));
+    }
+
     #[cfg(not(feature = "liquid"))]
     let addr = address::Address::from_str(addr)?;
     #[cfg(feature = "liquid")]
